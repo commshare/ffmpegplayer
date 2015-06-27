@@ -1,14 +1,15 @@
 #include "player.h"
 
-void Player::read_packet_thread(void* obj){
+int Player::read_packet_thread(void* obj){
 	if (!obj)
 	{
 		/* code */
-		return;
+		return -1;
 	}
 	Player* player = (Player*)obj;
 	AVPacket *pPacket = (AVPacket*)av_malloc(sizeof(AVPacket));
 	AVFrame *pFrame = av_frame_alloc();
+	AVFrame *pFrameYUV = av_frame_alloc();
 	int tns, thh, tmm, tss;  
 	tns  = (player->get_p_formatCtx()->duration)/1000000;  
 	thh  = tns / 3600;  
@@ -28,27 +29,27 @@ void Player::read_packet_thread(void* obj){
 			if (got)
 			{
 				/* code */
-				/*
-				SDL_LockYUVOverlay(bmp);
-				pFrameYUV->data[0] = bmp->pixels[0];
-				pFrameYUV->data[1] = bmp->pixels[1];
-				pFrameYUV->data[2] = bmp->pixels[2];
-				pFrameYUV->linesize[0] = bmp->pitches[0];
-				pFrameYUV->linesize[1] = bmp->pitches[1];
-				pFrameYUV->linesize[2] = bmp->pitches[2];
+				
+				SDL_LockYUVOverlay(player->p_bmp);
+				pFrameYUV->data[0] = player->p_bmp->pixels[0];
+				pFrameYUV->data[1] = player->p_bmp->pixels[1];
+				pFrameYUV->data[2] = player->p_bmp->pixels[2];
+				pFrameYUV->linesize[0] = player->p_bmp->pitches[0];
+				pFrameYUV->linesize[1] = player->p_bmp->pitches[1];
+				pFrameYUV->linesize[2] = player->p_bmp->pitches[2];
 
-				sws_scale(img_convert_ctx, (const uint8_t* const*)pFrame->data, pFrame->linesize, 0, pCodecCtx->height, pFrameYUV->data, pFrameYUV->linesize);
+				sws_scale(player->img_convert_ctx, (const uint8_t* const*)pFrame->data, pFrame->linesize, 0, player->get_p_video_codecCtx()->height, pFrameYUV->data, pFrameYUV->linesize);
 
-				SDL_UnlockYUVOverlay(bmp);
+				SDL_UnlockYUVOverlay(player->p_bmp);
 				SDL_Rect rect;
 				rect.x = 0;
 				rect.y = 0;
-				rect.w = 400;
-				rect.h = 400;
+				rect.w = 800;
+				rect.h = 800;
 
-				SDL_DisplayYUVOverlay(bmp,&rect);
-				*/
-				player->m_video_queue.push(*pPacket);
+				SDL_DisplayYUVOverlay(player->p_bmp,&rect);
+				
+				player->m_video_queue.push(*pFrame);
 			}
 			int nts,nh,nm,ns;
 			nts = pPacket->pts / 1000000;
@@ -56,14 +57,14 @@ void Player::read_packet_thread(void* obj){
 			nm = (nts % 3600) / 60;
 			ns = nts % 60;
 			printf("video:len:%d  play time:%02d:%02d:%02d  total time:%02d:%02d:%02d  h:%d  w:%d\n",ret,nh,nm,ns,thh,tmm,tss,pFrame->height,pFrame->width);
-			//SDL_Delay(50);
+			SDL_Delay(50);
 		}else if(pPacket->stream_index == player->m_audioindex){
 			int got = 0;
 			int ret = avcodec_decode_audio4(player->get_p_audio_codecCtx(),pFrame,&got,pPacket);
 			if (got)
 			{
 				/* code */
-				player->m_audio_queue.push(*pPacket);
+				player->m_audio_queue.push(*pFrame);
 			}
 
 			int nts,nh,nm,ns;
@@ -72,11 +73,14 @@ void Player::read_packet_thread(void* obj){
 			nm = (nts % 3600) / 60;
 			ns = nts % 60;
 			printf("audio:len:%d  play time:%02d:%02d:%02d  total time:%02d:%02d:%02d  h:%d  w:%d\n",ret,nh,nm,ns,thh,tmm,tss,pFrame->height,pFrame->width);
+			//SDL_Delay(1);
 		}
-		usleep(40000);
 	}
+	cout<<"video_queue size:"<<player->m_video_queue.size()<<endl;
+	cout<<"audio_queue size:"<<player->m_audio_queue.size()<<endl;
 	av_free(pPacket);
 	av_free(pFrame);
+	av_free(pFrameYUV);
 }
 
 void Player::codec_video_thread(void* obj){
@@ -87,8 +91,9 @@ void Player::codec_audio_thread(void *obj){
 
 }
 
-Player::Player():
+Player::Player(SDL_Surface* screen):
 m_videoindex(-1),m_audioindex(-1){
+	this->screen = screen;
 	this->onInit();
 }
 
@@ -203,8 +208,19 @@ int Player::player(const char* filename){
 		cout<<"Could not open audio codec......"<<endl;
 		return -1;
 	}
+	img_convert_ctx = sws_getContext(p_video_codecCtx->width, p_video_codecCtx->height, 
+		p_video_codecCtx->pix_fmt, p_video_codecCtx->width, p_video_codecCtx->height, 
+		PIX_FMT_YUV420P, SWS_BICUBIC, NULL, NULL, NULL); 
+
+	/**
+	* display
+	*/
+	int screen_w = p_video_codecCtx->width;
+	int screen_h = p_video_codecCtx->height;
+	p_bmp = SDL_CreateYUVOverlay(screen_w,screen_h,SDL_YV12_OVERLAY,this->screen);
 
 	av_dump_format(p_formatCtx,0,filename,0);
+	SDL_CreateThread(read_packet_thread,this);
 
 	return 1;
 }

@@ -5,6 +5,7 @@
 #include <sys/time.h>
 #include <signal.h>
 #include <unistd.h>
+#include <SDL/SDL.h>
 
 extern "C"
 {
@@ -23,7 +24,7 @@ using namespace std;
 
 class Player{
 public:
-	Player();
+	Player(SDL_Surface* screen);
 	~Player();
 
 	int player(const char* filename);
@@ -31,7 +32,7 @@ public:
 	/**
 	* read data packet thread from stream
 	*/
-	static void read_packet_thread(void* obj);
+	static int read_packet_thread(void* obj);
 	/**
 	* codec video thread
 	*/
@@ -60,6 +61,7 @@ private:
 	AVFormatContext* p_formatCtx;
 	AVCodecContext* p_video_codecCtx;
 	AVCodecContext* p_audio_codecCtx;
+	struct SwsContext *img_convert_ctx;
 	AVCodec* p_video_codec;
 	AVCodec* p_audio_codec;
 
@@ -70,9 +72,14 @@ public:
 	int m_videoindex;
 	int m_audioindex;
 
+	Queue<AVFrame> m_video_queue;
+	Queue<AVFrame> m_audio_queue;
 
-	Queue<AVPacket> m_video_queue;
-	Queue<AVPacket> m_audio_queue;
+	/**
+	* display
+	*/
+	SDL_Overlay* p_bmp;
+	SDL_Surface* screen;
 
 };
 
