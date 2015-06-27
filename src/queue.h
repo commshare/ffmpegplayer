@@ -21,7 +21,7 @@ public:
 	* delete head of queue
 	* @return
 	*/
-	void pop();
+	int pop();
 	/**
 	* take element of head for queue
 	* @return T

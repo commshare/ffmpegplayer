@@ -33,12 +33,12 @@ void Queue<T>::push(T t1){
 }
 
 template<class T>
-void Queue<T>::pop(){
+int Queue<T>::pop(){
 	if(this->m_size == 0 ||this->m_head == this->m_tail){
-		return ;
+		return 1;
 	}
 	if(this->m_head->next == NULL){
-		return ;
+		return 2;
 	}
 
 	List* temp = this->m_head->next;
@@ -46,6 +46,7 @@ void Queue<T>::pop(){
 	delete temp;
 	
 	this->m_size -= 1;
+	return 3;
 }
 
 template<class T>

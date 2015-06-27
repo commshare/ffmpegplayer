@@ -29,7 +29,7 @@ int Player::read_packet_thread(void* obj){
 			if (got)
 			{
 				/* code */
-				
+				/**
 				SDL_LockYUVOverlay(player->p_bmp);
 				pFrameYUV->data[0] = player->p_bmp->pixels[0];
 				pFrameYUV->data[1] = player->p_bmp->pixels[1];
@@ -48,8 +48,11 @@ int Player::read_packet_thread(void* obj){
 				rect.h = 800;
 
 				SDL_DisplayYUVOverlay(player->p_bmp,&rect);
-				
-				player->m_video_queue.push(*pFrame);
+				*/
+				SDL_LockMutex(p_video_mutex);
+				g_video_queue.push(*pFrame);
+				SDL_CondSignal(p_cond);
+				SDL_UnlockMutex(p_video_mutex);
 			}
 			int nts,nh,nm,ns;
 			nts = pPacket->pts / 1000000;
@@ -57,14 +60,16 @@ int Player::read_packet_thread(void* obj){
 			nm = (nts % 3600) / 60;
 			ns = nts % 60;
 			printf("video:len:%d  play time:%02d:%02d:%02d  total time:%02d:%02d:%02d  h:%d  w:%d\n",ret,nh,nm,ns,thh,tmm,tss,pFrame->height,pFrame->width);
-			SDL_Delay(50);
+			SDL_Delay(1);
 		}else if(pPacket->stream_index == player->m_audioindex){
 			int got = 0;
 			int ret = avcodec_decode_audio4(player->get_p_audio_codecCtx(),pFrame,&got,pPacket);
 			if (got)
 			{
 				/* code */
-				player->m_audio_queue.push(*pFrame);
+				SDL_LockMutex(p_audio_mutex);
+				g_audio_queue.push(*pFrame);
+				SDL_UnlockMutex(p_audio_mutex);
 			}
 
 			int nts,nh,nm,ns;
@@ -73,22 +78,96 @@ int Player::read_packet_thread(void* obj){
 			nm = (nts % 3600) / 60;
 			ns = nts % 60;
 			printf("audio:len:%d  play time:%02d:%02d:%02d  total time:%02d:%02d:%02d  h:%d  w:%d\n",ret,nh,nm,ns,thh,tmm,tss,pFrame->height,pFrame->width);
-			//SDL_Delay(1);
+			SDL_Delay(1);
 		}
 	}
-	cout<<"video_queue size:"<<player->m_video_queue.size()<<endl;
-	cout<<"audio_queue size:"<<player->m_audio_queue.size()<<endl;
+	cout<<"video_queue size:"<<g_video_queue.size()<<endl;
+	cout<<"audio_queue size:"<<g_audio_queue.size()<<endl;
 	av_free(pPacket);
 	av_free(pFrame);
 	av_free(pFrameYUV);
+
+	return 0;
 }
 
-void Player::codec_video_thread(void* obj){
+int Player::codec_video_thread(void* obj){
+	if (!obj)
+	{
+		/* code */
+		return -1;
+	}
+	SDL_Delay(20);
 
+	Player* player = (Player*)obj;
+	AVFrame* pFrameYUV = av_frame_alloc();
+	for(;;){
+		if (g_video_queue.size() <= 0)
+		{
+			/* code */
+			SDL_CondWait(p_cond,p_video_mutex);
+			continue;
+		}
+
+		SDL_LockMutex(p_video_mutex);
+		AVFrame* frame = av_frame_alloc();
+		*frame = g_video_queue.queue();
+		cout<<"..............................."<<frame->linesize[0]<<" \t"<<g_video_queue.size()<<endl;
+		pFrameYUV->data[0] = player->p_bmp->pixels[0];
+		pFrameYUV->data[1] = player->p_bmp->pixels[1];
+		pFrameYUV->data[2] = player->p_bmp->pixels[2];
+		pFrameYUV->linesize[0] = player->p_bmp->pitches[0];
+		pFrameYUV->linesize[1] = player->p_bmp->pitches[1];
+		pFrameYUV->linesize[2] = player->p_bmp->pitches[2];
+
+		
+
+		sws_scale(player->img_convert_ctx, (const uint8_t* const*)frame->data, frame->linesize, 0, player->get_p_video_codecCtx()->height, pFrameYUV->data, pFrameYUV->linesize);
+		
+		SDL_UnlockMutex(p_video_mutex);
+
+		SDL_Rect rect;
+		rect.x = 0;
+		rect.y = 0;
+		rect.w = 800;
+		rect.h = 800;
+
+		SDL_DisplayYUVOverlay(player->p_bmp,&rect);
+		SDL_Delay(50);
+	}
+	av_free(pFrameYUV);
+
+	return 0;
 }
 
-void Player::codec_audio_thread(void *obj){
+int Player::codec_audio_thread(void *obj){
+	if (!obj)
+	{
+		/* code */
+		return -1;
+	}
+	SDL_Delay(20);
 
+	return 0;
+
+	Player* player = (Player*)obj;
+
+	AVFrame* pFrameYUV = av_frame_alloc();
+	for(;;){
+		if (g_audio_queue.size() <= 0)
+		{
+			/* code */
+			continue;
+		}
+		
+		SDL_LockMutex(p_audio_mutex);
+		AVFrame frame = g_audio_queue.queue();
+
+		g_audio_queue.pop();
+		SDL_UnlockMutex(p_audio_mutex);
+	}
+	av_free(pFrameYUV);
+
+	return 0;
 }
 
 Player::Player(SDL_Surface* screen):
@@ -112,6 +191,7 @@ Player::~Player(){
 
 	//m_video_queue.clear();
 	//m_audio_queue.clear();
+	
 	avformat_close_input(&p_formatCtx);
 }
 
@@ -219,8 +299,12 @@ int Player::player(const char* filename){
 	int screen_h = p_video_codecCtx->height;
 	p_bmp = SDL_CreateYUVOverlay(screen_w,screen_h,SDL_YV12_OVERLAY,this->screen);
 
+
+
 	av_dump_format(p_formatCtx,0,filename,0);
 	SDL_CreateThread(read_packet_thread,this);
+	SDL_CreateThread(codec_video_thread,this);
+	SDL_CreateThread(codec_audio_thread,this);
 
 	return 1;
 }

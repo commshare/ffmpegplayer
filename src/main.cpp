@@ -5,6 +5,13 @@
 
 using namespace std;
 
+Queue<AVFrame> g_video_queue;
+Queue<AVFrame> g_audio_queue;
+
+SDL_mutex* p_video_mutex;
+SDL_mutex* p_audio_mutex;	
+SDL_cond *p_cond;
+
 void sig(int sig){
 	printf("obtain sig.....");
 	if(sig == SIGINT){
@@ -30,6 +37,9 @@ int main(int argv,const char* argc[]){
 	SDL_Rect rect;
 	SDL_Thread *video_tid;
 	SDL_Event event;
+
+	p_video_mutex = SDL_CreateMutex();
+	p_audio_mutex = SDL_CreateMutex();
 
 	screen = SDL_SetVideoMode(800,800,0,0);
 	if (!screen)
@@ -60,5 +70,9 @@ int main(int argv,const char* argc[]){
 		}
 		
 	}
+	SDL_DestroyMutex(p_video_mutex);
+	SDL_DestroyMutex(p_audio_mutex);
+	SDL_Quit();
+	
 	return 0;
 }

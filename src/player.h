@@ -22,6 +22,13 @@ extern "C"
 using namespace std;
 
 
+extern Queue<AVFrame> g_video_queue;
+extern Queue<AVFrame> g_audio_queue;
+
+extern SDL_mutex* p_video_mutex;
+extern SDL_mutex* p_audio_mutex;	
+extern SDL_cond *p_cond;
+
 class Player{
 public:
 	Player(SDL_Surface* screen);
@@ -36,11 +43,11 @@ public:
 	/**
 	* codec video thread
 	*/
-	static void codec_video_thread(void* obj);
+	static int codec_video_thread(void* obj);
 	/**
 	* codec audio thread
 	*/
-	static void codec_audio_thread(void* obj);
+	static int codec_audio_thread(void* obj);
 
 	inline   AVFormatContext* get_p_formatCtx(){
 		return p_formatCtx;
@@ -72,15 +79,13 @@ public:
 	int m_videoindex;
 	int m_audioindex;
 
-	Queue<AVFrame> m_video_queue;
-	Queue<AVFrame> m_audio_queue;
+
 
 	/**
 	* display
 	*/
 	SDL_Overlay* p_bmp;
 	SDL_Surface* screen;
-
 };
 
 #endif
