@@ -59,7 +59,7 @@ int Player::read_packet_thread(void* obj){
 			nh = nts / 3600;
 			nm = (nts % 3600) / 60;
 			ns = nts % 60;
-			printf("video:len:%d  play time:%02d:%02d:%02d  total time:%02d:%02d:%02d  h:%d  w:%d\n",ret,nh,nm,ns,thh,tmm,tss,pFrame->height,pFrame->width);
+			//printf("video:len:%d  play time:%02d:%02d:%02d  total time:%02d:%02d:%02d  h:%d  w:%d\n",ret,nh,nm,ns,thh,tmm,tss,pFrame->height,pFrame->width);
 			SDL_Delay(1);
 		}else if(pPacket->stream_index == player->m_audioindex){
 			int got = 0;
@@ -77,7 +77,7 @@ int Player::read_packet_thread(void* obj){
 			nh = nts / 3600;
 			nm = (nts % 3600) / 60;
 			ns = nts % 60;
-			printf("audio:len:%d  play time:%02d:%02d:%02d  total time:%02d:%02d:%02d  h:%d  w:%d\n",ret,nh,nm,ns,thh,tmm,tss,pFrame->height,pFrame->width);
+			//printf("audio:len:%d  play time:%02d:%02d:%02d  total time:%02d:%02d:%02d  h:%d  w:%d\n",ret,nh,nm,ns,thh,tmm,tss,pFrame->height,pFrame->width);
 			SDL_Delay(1);
 		}
 	}
@@ -101,14 +101,16 @@ int Player::codec_video_thread(void* obj){
 	Player* player = (Player*)obj;
 	AVFrame* pFrameYUV = av_frame_alloc();
 	for(;;){
+		SDL_LockMutex(p_video_mutex);
 		if (g_video_queue.size() <= 0)
 		{
 			/* code */
 			//SDL_CondWait(p_cond,p_video_mutex);
+			SDL_UnlockMutex(p_video_mutex);
 			continue;
 		}
 
-		SDL_LockMutex(p_video_mutex);
+		
 		AVFrame* frame = av_frame_alloc();
 		*frame = g_video_queue.queue();
 		g_video_queue.pop();
