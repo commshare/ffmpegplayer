@@ -8,7 +8,7 @@ template<class T>
 Queue<T>::Queue():m_size(0){
 	List* temp = new List;
 	temp->next = NULL;
-	this->m_head = this->m_tail = temp;
+	this->m_head = temp;
 }
 
 template<class T>
@@ -18,23 +18,35 @@ Queue<T>::~Queue(){
 
 template<class T>
 void Queue<T>::push(T t1){
-	if(this->m_tail == NULL){
+	if(this->m_head == NULL){
 		return ;
+	}
+
+	List* p = this->m_head->next;
+	List* q = p;
+	while(p){
+		q = p;
+		p = p->next;
 	}
 
 	List* temp = new List;
 	temp->element = t1;
 	temp->next = NULL;
-
+/*
 	this->m_tail->next = temp;
 	this->m_tail = temp;
-
+*/
+	if(q == NULL){
+		this->m_head->next = temp;
+	}else{
+		q->next = temp;
+	}
 	this->m_size += 1;
 }
 
 template<class T>
 int Queue<T>::pop(){
-	if(this->m_size == 0 ||this->m_head == this->m_tail){
+	if(this->m_size == 0){
 		return 1;
 	}
 	if(this->m_head->next == NULL){

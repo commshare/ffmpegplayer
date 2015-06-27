@@ -104,13 +104,14 @@ int Player::codec_video_thread(void* obj){
 		if (g_video_queue.size() <= 0)
 		{
 			/* code */
-			SDL_CondWait(p_cond,p_video_mutex);
+			//SDL_CondWait(p_cond,p_video_mutex);
 			continue;
 		}
 
 		SDL_LockMutex(p_video_mutex);
 		AVFrame* frame = av_frame_alloc();
 		*frame = g_video_queue.queue();
+		g_video_queue.pop();
 		cout<<"..............................."<<frame->linesize[0]<<" \t"<<g_video_queue.size()<<endl;
 		pFrameYUV->data[0] = player->p_bmp->pixels[0];
 		pFrameYUV->data[1] = player->p_bmp->pixels[1];
@@ -122,7 +123,7 @@ int Player::codec_video_thread(void* obj){
 		
 
 		sws_scale(player->img_convert_ctx, (const uint8_t* const*)frame->data, frame->linesize, 0, player->get_p_video_codecCtx()->height, pFrameYUV->data, pFrameYUV->linesize);
-		
+
 		SDL_UnlockMutex(p_video_mutex);
 
 		SDL_Rect rect;
