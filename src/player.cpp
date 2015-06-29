@@ -1,5 +1,9 @@
 #include "player.h"
 
+static int is_finish = 0;
+static int onces = 0;
+static AVFrame* frist_frame;
+
 int Player::read_packet_thread(void* obj){
 	if (!obj)
 	{
@@ -33,6 +37,7 @@ int Player::read_packet_thread(void* obj){
 			SDL_Delay(1);
 		}
 	}
+	is_finish = 1;
 	cout<<"video_queue size:"<<g_video_queue.size()<<endl;
 	cout<<"audio_queue size:"<<g_audio_queue.size()<<endl;
 	av_free(pPacket);
@@ -62,13 +67,21 @@ int Player::codec_video_thread(void* obj){
 	thh  = tns / 3600;  
 	tmm  = (tns % 3600) / 60;  
 	tss  = (tns % 60);
+	int temp = 0;
+
 	for(;;){
 		SDL_LockMutex(p_video_mutex);
 		if (g_video_queue.size() <= 0)
 		{
 			/* code */
+			if (is_finish == 1)
+			{
+				/* code */
+				break;
+			}
 			SDL_CondWait(p_cond,p_video_mutex);
 			SDL_UnlockMutex(p_video_mutex);
+
 			continue;
 		}
 
@@ -76,6 +89,11 @@ int Player::codec_video_thread(void* obj){
 		*packet = g_video_queue.queue();
 		int got = 0;
 		int ret = avcodec_decode_video2(player->get_p_video_codecCtx(),pFrame,&got,packet);
+		if (onces == 0)
+		{
+			onces = 1;
+		}
+
 		if (ret < 0)
 		{
 			/* code */
@@ -115,11 +133,20 @@ int Player::codec_video_thread(void* obj){
 		nh = nts / 3600;
 		nm = (nts % 3600) / 60;
 		ns = nts % 60;
-		printf("video:len:%d  play time:%02d:%02d:%02d  total time:%02d:%02d:%02d  h:%d  w:%d\n",ret,nh,nm,ns,thh,tmm,tss,pFrame->height,pFrame->width);
+		int min = temp < ns ? temp : ns;
+		int max = temp > ns ? temp : ns;
+		if (max - min >= 1)
+		{
+			/* code */
+			temp = ns;
+			printf("play time:%02d:%02d:%02d  total time:%02d:%02d:%02d  h:%d  w:%d\n",nh,nm,ns,thh,tmm,tss,pFrame->height,pFrame->width);
+		}
+		
 		
 		SDL_Delay(50);
 		av_free(packet);
 	}
+	cout<<"player finish........"<<endl;
 	av_free(pFrameYUV);
 
 	return 0;
@@ -132,12 +159,12 @@ Uint8  *audio_chunk;
 Uint32  audio_len;   
 Uint8  *audio_pos; 
 
- void  callback(void *udata,Uint8 *stream,int len){   
+ void  audio_callback(void *udata,Uint8 *stream,int len){   
         /*  Only  play  if  we  have  data  left  */   
-    if(audio_len==0)   
+    if(audio_len == 0)   
             return;   
         /*  Mix  as  much  data  as  possible  */   
-    len=(len>audio_len?audio_len:len);   
+    len = (len>audio_len?audio_len:len);   
     SDL_MixAudio(stream,audio_pos,len,SDL_MIX_MAXVOLUME);  
     audio_pos += len;   
     audio_len -= len;  
@@ -168,13 +195,13 @@ int Player::codec_audio_thread(void *obj){
     wanted_spec.format = AUDIO_S16SYS;   
     wanted_spec.channels = player->get_p_audio_codecCtx()->channels;   
     wanted_spec.silence = 0;   
-    wanted_spec.samples = 1024;  //mp3 and mav  1152
-    wanted_spec.callback = callback;   
+    wanted_spec.samples = 1152;  //mp3 and mav  1152
+    wanted_spec.callback = audio_callback;   
     wanted_spec.userdata = player->get_p_audio_codecCtx(); 
     if (SDL_OpenAudio(&wanted_spec, NULL)<0)   
     {   
         printf("can't open audio.\n");   
-        return 0;   
+        return -1;   
     } 
 	AVFrame* pFrame = av_frame_alloc();
 	int tns, thh, tmm, tss;  
@@ -215,7 +242,7 @@ int Player::codec_audio_thread(void *obj){
             SDL_CondWait(p_audiocond,p_audio_mutex);
 		}
 	
-		g_audio_queue.pop();
+		int code = g_audio_queue.pop();
 		SDL_UnlockMutex(p_audio_mutex);
 
 		/**
@@ -226,7 +253,7 @@ int Player::codec_audio_thread(void *obj){
 		nh = nts / 3600;
 		nm = (nts % 3600) / 60;
 		ns = nts % 60;
-		printf("audio:len:%d  play time:%02d:%02d:%02d  total time:%02d:%02d:%02d  h:%d  w:%d\n",ret,nh,nm,ns,thh,tmm,tss,pFrame->height,pFrame->width);
+		//printf("audio:len:%d  play time:%02d:%02d:%02d  total time:%02d:%02d:%02d  h:%d  w:%d   %d   %d\n",ret,nh,nm,ns,thh,tmm,tss,pFrame->height,pFrame->width,code,g_audio_queue.size());
 		av_free(pPacket);
 	}
 	av_free(pFrame);
