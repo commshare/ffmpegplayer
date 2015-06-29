@@ -338,10 +338,12 @@ int Player::player(const char* filename){
 			m_audioindex = ii;
 		}
 	}
+	
+	av_dump_format(p_formatCtx,0,filename,0);
 	if (m_videoindex == -1 || m_audioindex == -1)
 	{
 		/* code */
-		cout<<"Didn't find video stream......."<<endl;;
+		cout<<"Didn't find video stream......."<<p_formatCtx->nb_streams<<"............."<<strerror(errno)<<endl;;
 		return -1;
 	}
 
@@ -359,21 +361,18 @@ int Player::player(const char* filename){
 
 	if (!p_audio_codec)
 	{
-		/* code */
 		cout<<"Could not found audio codec....."<<endl;
 		return -1;
 	}
 
 	if (avcodec_open2(p_video_codecCtx,p_video_codec,NULL) < 0)
 	{
-		/* code */
 		cout<<"Could not open video codec......"<<endl;;
 		return -1;
 	}
 
 	if (avcodec_open2(p_audio_codecCtx,p_audio_codec,NULL) < 0)
 	{
-		/* code */
 		cout<<"Could not open audio codec......"<<endl;
 		return -1;
 	}
