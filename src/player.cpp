@@ -1,5 +1,7 @@
 #include "player.h"
 
+#define MAX_BUFFERED_PACKET 300
+
 static int is_finish = 0;
 static int onces = 0;
 static AVFrame* frist_frame;
@@ -18,7 +20,11 @@ int Player::read_packet_thread(void* obj){
 		if (pPacket->stream_index == player->m_videoindex){
 			/* code */
 			SDL_LockMutex(p_video_mutex);
-			g_video_queue.push(*pPacket);
+			if (g_video_queue.size() <= MAX_BUFFERED_PACKET)
+			{
+				/* code */
+				g_video_queue.push(*pPacket);
+			}
 			if (g_video_queue.size() == 1)
 			{
 				/* code */
@@ -57,7 +63,7 @@ int Player::codec_video_thread(void* obj){
 	/**
 	* delay 50ms start player
 	*/
-	SDL_Delay(50);
+	SDL_Delay(40);
 
 	Player* player = (Player*)obj;
 	AVFrame *pFrame = av_frame_alloc();
@@ -139,11 +145,11 @@ int Player::codec_video_thread(void* obj){
 		{
 			/* code */
 			temp = ns;
-			printf("play time:%02d:%02d:%02d  total time:%02d:%02d:%02d  h:%d  w:%d\n",nh,nm,ns,thh,tmm,tss,pFrame->height,pFrame->width);
+			printf("play time:%02d:%02d:%02d  total time:%02d:%02d:%02d  h:%d  w:%d  packet:%d\n",nh,nm,ns,thh,tmm,tss,pFrame->height,pFrame->width,g_video_queue.size());
 		}
 		
 		
-		SDL_Delay(50);
+		SDL_Delay(40);
 		av_free(packet);
 	}
 	cout<<"player finish........"<<endl;
@@ -338,7 +344,7 @@ int Player::player(const char* filename){
 			m_audioindex = ii;
 		}
 	}
-	
+
 	av_dump_format(p_formatCtx,0,filename,0);
 	if (m_videoindex == -1 || m_audioindex == -1)
 	{
