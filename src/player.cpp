@@ -34,6 +34,7 @@ int Player::read_packet_thread(void* obj){
 			SDL_Delay(1);
 		}else if(pPacket->stream_index == player->m_audioindex){
 			/* code */
+			continue;
 			SDL_LockMutex(p_audio_mutex);
 			g_audio_queue.push(*pPacket);
 			if(g_audio_queue.size() == 1){
@@ -145,7 +146,7 @@ int Player::codec_video_thread(void* obj){
 		{
 			/* code */
 			temp = ns;
-			printf("play time:%02d:%02d:%02d  total time:%02d:%02d:%02d  h:%d  w:%d  packet:%d\n",nh,nm,ns,thh,tmm,tss,pFrame->height,pFrame->width,g_video_queue.size());
+			printf("play time:%02d:%02d:%02d  total time:%02d:%02d:%02d  h:%d  w:%d  packet:%d audio:%d\n",nh,nm,ns,thh,tmm,tss,pFrame->height,pFrame->width,g_video_queue.size(),g_audio_queue.size());
 		}
 		
 		
