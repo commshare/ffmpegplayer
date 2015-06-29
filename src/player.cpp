@@ -260,6 +260,7 @@ void Player::onInit(){
 
 	av_register_all();
 	avcodec_register_all();
+	avformat_network_init();
 
 	p_formatCtx = avformat_alloc_context();
 	if (!p_formatCtx)
@@ -349,6 +350,7 @@ int Player::player(const char* filename){
 		cout<<"Could not open audio codec......"<<endl;
 		return -1;
 	}
+	cout<<"init sucess..................."<<endl;
 	img_convert_ctx = sws_getContext(p_video_codecCtx->width, p_video_codecCtx->height, 
 		p_video_codecCtx->pix_fmt, p_video_codecCtx->width, p_video_codecCtx->height, 
 		PIX_FMT_YUV420P, SWS_BICUBIC, NULL, NULL, NULL); 

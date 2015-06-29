@@ -58,7 +58,7 @@ int main(int argv,const char* argc[]){
 	
 
 	Player player(screen);
-	if(!player.player(argc[1])){
+	if(player.player(argc[1]) == -1){
 		cout<<"player faile............."<<endl;
 		return -1;
 	}
