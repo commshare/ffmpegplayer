@@ -5,12 +5,14 @@
 
 using namespace std;
 
-Queue<AVFrame> g_video_queue;
-Queue<AVFrame> g_audio_queue;
+Queue<AVPacket> g_video_queue;
+Queue<AVPacket> g_audio_queue;
 
 SDL_mutex* p_video_mutex;
 SDL_mutex* p_audio_mutex;	
 SDL_cond *p_cond;
+SDL_cond *p_audiocond;
+
 
 void sig(int sig){
 	printf("obtain sig.....");
@@ -40,6 +42,8 @@ int main(int argv,const char* argc[]){
 
 	p_video_mutex = SDL_CreateMutex();
 	p_audio_mutex = SDL_CreateMutex();
+	p_cond = SDL_CreateCond();
+	p_audiocond = SDL_CreateCond();
 
 	screen = SDL_SetVideoMode(800,800,0,0);
 	if (!screen)
@@ -51,16 +55,15 @@ int main(int argv,const char* argc[]){
 	
 	SDL_WM_SetCaption("simple SDL test",NULL);
 
+	
+
 	Player player(screen);
 	if(!player.player(argc[1])){
 		cout<<"player faile............."<<endl;
 		return -1;
 	}
-	//Player::read_packet_thread(&player);
 	cout<<"player sucess.........."<<endl;
 
-	//cout<<"video_queue size:"<<player.m_video_queue.size()<<endl;
-	//cout<<"audio_queue size:"<<player.m_audio_queue.size()<<endl;
 	for(;;){
 		SDL_WaitEvent(&event);
 		if (event.type == SDL_QUIT)
@@ -72,6 +75,8 @@ int main(int argv,const char* argc[]){
 	}
 	SDL_DestroyMutex(p_video_mutex);
 	SDL_DestroyMutex(p_audio_mutex);
+	SDL_DestroyCond(p_cond);
+	SDL_DestroyCond(p_audiocond);
 	SDL_Quit();
 	
 	return 0;

@@ -91,7 +91,6 @@ void Queue<T>::clear(){
 		delete temp;
 		temp = te;
 	}
-	this->m_tail = this->m_head;
 
 	this->m_size = 0;
 }

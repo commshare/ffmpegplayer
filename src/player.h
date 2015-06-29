@@ -22,12 +22,13 @@ extern "C"
 using namespace std;
 
 
-extern Queue<AVFrame> g_video_queue;
-extern Queue<AVFrame> g_audio_queue;
+extern Queue<AVPacket> g_video_queue;
+extern Queue<AVPacket> g_audio_queue;
 
 extern SDL_mutex* p_video_mutex;
 extern SDL_mutex* p_audio_mutex;	
 extern SDL_cond *p_cond;
+extern SDL_cond *p_audiocond;
 
 class Player{
 public:
