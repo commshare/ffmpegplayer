@@ -15,14 +15,20 @@ int Player::read_packet_thread(void* obj){
 			/* code */
 			SDL_LockMutex(p_video_mutex);
 			g_video_queue.push(*pPacket);
-			SDL_CondSignal(p_cond);
+			if (g_video_queue.size() == 1)
+			{
+				/* code */
+				SDL_CondSignal(p_cond);
+			}
 			SDL_UnlockMutex(p_video_mutex);
 			SDL_Delay(1);
 		}else if(pPacket->stream_index == player->m_audioindex){
 			/* code */
 			SDL_LockMutex(p_audio_mutex);
 			g_audio_queue.push(*pPacket);
-			SDL_CondSignal(p_audiocond);
+			if(g_audio_queue.size() == 1){
+				SDL_CondSignal(p_audiocond);
+			}
 			SDL_UnlockMutex(p_audio_mutex);
 			SDL_Delay(1);
 		}
