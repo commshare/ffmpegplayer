@@ -34,8 +34,12 @@ int Player::read_packet_thread(void* obj){
 			SDL_Delay(1);
 		}else if(pPacket->stream_index == player->m_audioindex){
 			/* code */
-			continue;
 			SDL_LockMutex(p_audio_mutex);
+			// if (g_audio_queue.size() <= MAX_BUFFERED_PACKET)
+			// {
+			// 	/* code */
+			// 	g_audio_queue.push(*pPacket);
+			// }
 			g_audio_queue.push(*pPacket);
 			if(g_audio_queue.size() == 1){
 				SDL_CondSignal(p_audiocond);
@@ -216,6 +220,8 @@ int Player::codec_audio_thread(void *obj){
 	thh  = tns / 3600;  
 	tmm  = (tns % 3600) / 60;  
 	tss  = (tns % 60);
+	int temp = 0;
+
 	for(;;){
 		SDL_LockMutex(p_audio_mutex);
 		if (g_audio_queue.size() <= 0)
@@ -245,7 +251,7 @@ int Player::codec_audio_thread(void *obj){
 			audio_chunk = (Uint8*) pFrame->data[0];   
         	audio_len = pFrame->linesize[0];  
         	audio_pos = audio_chunk;  
-            //SDL_PauseAudio(0);  
+            SDL_PauseAudio(0);  
             SDL_CondWait(p_audiocond,p_audio_mutex);
 		}
 	
@@ -256,11 +262,18 @@ int Player::codec_audio_thread(void *obj){
 		* output media times
 		*/
 		int nts,nh,nm,ns;
-		nts = pPacket->pts / 100000;
+		nts = pPacket->pts / 1000000;
 		nh = nts / 3600;
 		nm = (nts % 3600) / 60;
 		ns = nts % 60;
-		//printf("audio:len:%d  play time:%02d:%02d:%02d  total time:%02d:%02d:%02d  h:%d  w:%d   %d   %d\n",ret,nh,nm,ns,thh,tmm,tss,pFrame->height,pFrame->width,code,g_audio_queue.size());
+		int min = temp < ns ? temp : ns;
+		int max = temp > ns ? temp : ns;
+		if (max - min >= 1)
+		{
+			/* code */
+			temp = ns;
+			printf("audio:len:%d  play time:%02d:%02d:%02d  total time:%02d:%02d:%02d  h:%d  w:%d   %d   %d\n",ret,nh,nm,ns,thh,tmm,tss,pFrame->height,pFrame->width,code,g_audio_queue.size());
+		}
 		av_free(pPacket);
 	}
 	av_free(pFrame);
@@ -337,53 +350,41 @@ int Player::player(const char* filename){
 		{
 			/* code */
 			m_videoindex = ii;
-			//break;
+			#define VIDEO
 		}
 		if (p_formatCtx->streams[ii]->codec->codec_type == AVMEDIA_TYPE_AUDIO)
 		{
 			/* code */
 			m_audioindex = ii;
+			#define AUDIO
 		}
 	}
 
 	av_dump_format(p_formatCtx,0,filename,0);
-	if (m_videoindex == -1 || m_audioindex == -1)
+
+	if (m_videoindex == -1 && m_audioindex == -1)
 	{
 		/* code */
 		cout<<"Didn't find video stream......."<<p_formatCtx->nb_streams<<"............."<<strerror(errno)<<endl;;
 		return -1;
 	}
 
+#ifdef VIDEO
 	p_video_codecCtx = p_formatCtx->streams[m_videoindex]->codec;
-	p_audio_codecCtx = p_formatCtx->streams[m_audioindex]->codec;
-
 	p_video_codec = avcodec_find_decoder(p_video_codecCtx->codec_id);
-	p_audio_codec = avcodec_find_decoder(p_audio_codecCtx->codec_id);
+
 	if (!p_video_codec)
 	{
 		/* code */
 		cout<<"Could not found video codec...."<<endl;;
 		return -1;
 	}
-
-	if (!p_audio_codec)
-	{
-		cout<<"Could not found audio codec....."<<endl;
-		return -1;
-	}
-
 	if (avcodec_open2(p_video_codecCtx,p_video_codec,NULL) < 0)
 	{
 		cout<<"Could not open video codec......"<<endl;;
 		return -1;
 	}
 
-	if (avcodec_open2(p_audio_codecCtx,p_audio_codec,NULL) < 0)
-	{
-		cout<<"Could not open audio codec......"<<endl;
-		return -1;
-	}
-	cout<<"init sucess..................."<<endl;
 	img_convert_ctx = sws_getContext(p_video_codecCtx->width, p_video_codecCtx->height, 
 		p_video_codecCtx->pix_fmt, p_video_codecCtx->width, p_video_codecCtx->height, 
 		PIX_FMT_YUV420P, SWS_BICUBIC, NULL, NULL, NULL); 
@@ -394,13 +395,35 @@ int Player::player(const char* filename){
 	int screen_w = p_video_codecCtx->width;
 	int screen_h = p_video_codecCtx->height;
 	p_bmp = SDL_CreateYUVOverlay(screen_w,screen_h,SDL_YV12_OVERLAY,this->screen);
-
-
-
-	av_dump_format(p_formatCtx,0,filename,0);
-	SDL_CreateThread(read_packet_thread,this);
 	SDL_CreateThread(codec_video_thread,this);
+
+	cout<<"video init sucess...................."<<endl;
+#endif
+
+#ifdef AUDIO
+	p_audio_codecCtx = p_formatCtx->streams[m_audioindex]->codec;
+	p_audio_codec = avcodec_find_decoder(p_audio_codecCtx->codec_id);
+	
+
+	if (!p_audio_codec)
+	{
+		cout<<"Could not found audio codec....."<<endl;
+		return -1;
+	}
+
+	
+	if (avcodec_open2(p_audio_codecCtx,p_audio_codec,NULL) < 0)
+	{
+		cout<<"Could not open audio codec......"<<endl;
+		return -1;
+	}
+	cout<<"audio init  sucess..................."<<endl;
+
 	SDL_CreateThread(codec_audio_thread,this);
+	
+#endif
+
+	SDL_CreateThread(read_packet_thread,this);
 
 	return 1;
 }
