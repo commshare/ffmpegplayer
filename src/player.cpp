@@ -340,9 +340,11 @@ int Player::player(const char* filename){
 		return -1;
 	}
 
-	 m_videoindex = -1;
-	 m_audioindex = -1;
+	m_videoindex = -1;
+	m_audioindex = -1;
 	int ii = 0;
+
+
 	for (ii = 0; ii < p_formatCtx->nb_streams; ++ii)
 	{
 		/* code */
@@ -350,13 +352,11 @@ int Player::player(const char* filename){
 		{
 			/* code */
 			m_videoindex = ii;
-			#define VIDEO
 		}
 		if (p_formatCtx->streams[ii]->codec->codec_type == AVMEDIA_TYPE_AUDIO)
 		{
 			/* code */
 			m_audioindex = ii;
-			#define AUDIO
 		}
 	}
 
@@ -369,59 +369,58 @@ int Player::player(const char* filename){
 		return -1;
 	}
 
-#ifdef VIDEO
-	p_video_codecCtx = p_formatCtx->streams[m_videoindex]->codec;
-	p_video_codec = avcodec_find_decoder(p_video_codecCtx->codec_id);
+	if(m_videoindex != -1){
+		p_video_codecCtx = p_formatCtx->streams[m_videoindex]->codec;
+		p_video_codec = avcodec_find_decoder(p_video_codecCtx->codec_id);
 
-	if (!p_video_codec)
-	{
-		/* code */
-		cout<<"Could not found video codec...."<<endl;;
-		return -1;
-	}
-	if (avcodec_open2(p_video_codecCtx,p_video_codec,NULL) < 0)
-	{
-		cout<<"Could not open video codec......"<<endl;;
-		return -1;
-	}
+		if (!p_video_codec)
+		{
+			/* code */
+			cout<<"Could not found video codec...."<<endl;;
+			return -1;
+		}
+		if (avcodec_open2(p_video_codecCtx,p_video_codec,NULL) < 0)
+		{
+			cout<<"Could not open video codec......"<<endl;;
+			return -1;
+		}
 
-	img_convert_ctx = sws_getContext(p_video_codecCtx->width, p_video_codecCtx->height, 
-		p_video_codecCtx->pix_fmt, p_video_codecCtx->width, p_video_codecCtx->height, 
-		PIX_FMT_YUV420P, SWS_BICUBIC, NULL, NULL, NULL); 
+		img_convert_ctx = sws_getContext(p_video_codecCtx->width, p_video_codecCtx->height, 
+			p_video_codecCtx->pix_fmt, p_video_codecCtx->width, p_video_codecCtx->height, 
+			PIX_FMT_YUV420P, SWS_BICUBIC, NULL, NULL, NULL); 
 
-	/**
-	* display
-	*/
-	int screen_w = p_video_codecCtx->width;
-	int screen_h = p_video_codecCtx->height;
-	p_bmp = SDL_CreateYUVOverlay(screen_w,screen_h,SDL_YV12_OVERLAY,this->screen);
-	SDL_CreateThread(codec_video_thread,this);
+		/**
+		* display
+		*/
+		int screen_w = p_video_codecCtx->width;
+		int screen_h = p_video_codecCtx->height;
+		p_bmp = SDL_CreateYUVOverlay(screen_w,screen_h,SDL_YV12_OVERLAY,this->screen);
+		SDL_CreateThread(codec_video_thread,this);
 
-	cout<<"video init sucess...................."<<endl;
-#endif
-
-#ifdef AUDIO
-	p_audio_codecCtx = p_formatCtx->streams[m_audioindex]->codec;
-	p_audio_codec = avcodec_find_decoder(p_audio_codecCtx->codec_id);
-	
-
-	if (!p_audio_codec)
-	{
-		cout<<"Could not found audio codec....."<<endl;
-		return -1;
+		cout<<"video init sucess...................."<<endl;
 	}
 
-	
-	if (avcodec_open2(p_audio_codecCtx,p_audio_codec,NULL) < 0)
-	{
-		cout<<"Could not open audio codec......"<<endl;
-		return -1;
-	}
-	cout<<"audio init  sucess..................."<<endl;
+	if(m_audioindex != -1){
+		p_audio_codecCtx = p_formatCtx->streams[m_audioindex]->codec;
+		p_audio_codec = avcodec_find_decoder(p_audio_codecCtx->codec_id);
+		
+		if (!p_audio_codec)
+		{
+			cout<<"Could not found audio codec....."<<endl;
+			return -1;
+		}
 
-	SDL_CreateThread(codec_audio_thread,this);
-	
-#endif
+		
+		if (avcodec_open2(p_audio_codecCtx,p_audio_codec,NULL) < 0)
+		{
+			cout<<"Could not open audio codec......"<<endl;
+			return -1;
+		}
+		cout<<"audio init  sucess..................."<<endl;
+
+		SDL_CreateThread(codec_audio_thread,this);
+		
+	}
 
 	SDL_CreateThread(read_packet_thread,this);
 
