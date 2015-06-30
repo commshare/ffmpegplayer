@@ -53,7 +53,7 @@ int main(int argv,const char* argc[]){
 	}
 
 	
-	SDL_WM_SetCaption("simple SDL test",NULL);
+	SDL_WM_SetCaption("Video and Audio Player",NULL);
 
 	
 

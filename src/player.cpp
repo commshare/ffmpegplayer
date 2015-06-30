@@ -154,7 +154,7 @@ int Player::codec_video_thread(void* obj){
 		}
 		
 		
-		SDL_Delay(40);
+		SDL_Delay(30);
 		av_free(packet);
 	}
 	cout<<"player finish........"<<endl;
