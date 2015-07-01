@@ -6,46 +6,49 @@ static int is_finish = 0;
 static int onces = 0;
 static AVFrame* frist_frame;
 
-int Player::read_packet_thread(void* obj){
+void* Player::read_packet_thread(void* obj){
 	if (!obj)
 	{
 		/* code */
-		return -1;
+		return NULL;
 	}
 	Player* player = (Player*)obj;
 	AVPacket *pPacket = (AVPacket*)av_malloc(sizeof(AVPacket));
 	
-	
-	while(av_read_frame(player->get_p_formatCtx(),pPacket) >= 0){
+	struct timeval val;
+	while(av_read_frame(player->get_p_formatCtx(),pPacket) >= 0 && g_exit_code != 1){
 		if (pPacket->stream_index == player->m_videoindex){
 			/* code */
-			SDL_LockMutex(p_video_mutex);
+			pthread_mutex_lock(&p_video_mutex);
 			if (g_video_queue.size() <= MAX_BUFFERED_PACKET)
 			{
 				/* code */
 				g_video_queue.push(*pPacket);
+			}else{
+				val.tv_sec= 0;
+				val.tv_usec = 40;
+				select(-1,NULL,NULL,NULL,&val);
 			}
 			if (g_video_queue.size() == 1)
 			{
 				/* code */
-				SDL_CondSignal(p_cond);
+				pthread_cond_signal(&p_video_cond);
 			}
-			SDL_UnlockMutex(p_video_mutex);
-			SDL_Delay(1);
+			pthread_mutex_unlock(&p_video_mutex);
+			val.tv_sec= 0;
+			val.tv_usec = 1;
+			select(-1,NULL,NULL,NULL,&val);
 		}else if(pPacket->stream_index == player->m_audioindex){
 			/* code */
-			SDL_LockMutex(p_audio_mutex);
-			// if (g_audio_queue.size() <= MAX_BUFFERED_PACKET)
-			// {
-			// 	/* code */
-			// 	g_audio_queue.push(*pPacket);
-			// }
+			pthread_mutex_lock(&p_audio_mutex);
 			g_audio_queue.push(*pPacket);
 			if(g_audio_queue.size() == 1){
-				SDL_CondSignal(p_audiocond);
+				pthread_cond_signal(&p_audio_cond);
 			}
-			SDL_UnlockMutex(p_audio_mutex);
-			SDL_Delay(1);
+			pthread_mutex_unlock(&p_audio_mutex);
+			val.tv_sec= 0;
+			val.tv_usec = 1;
+			select(-1,NULL,NULL,NULL,&val);
 		}
 	}
 	is_finish = 1;
@@ -53,22 +56,25 @@ int Player::read_packet_thread(void* obj){
 	cout<<"audio_queue size:"<<g_audio_queue.size()<<endl;
 	av_free(pPacket);
 
-	return 0;
+	return NULL;
 }
 
 /**
 * player video thread
 */
-int Player::codec_video_thread(void* obj){
+void* Player::codec_video_thread(void* obj){
 	if (!obj)
 	{
 		/* code */
-		return -1;
+		return NULL;
 	}
 	/**
 	* delay 50ms start player
 	*/
-	SDL_Delay(40);
+	struct timeval val;
+	val.tv_sec= 0;
+	val.tv_usec = 40;
+	select(-1,NULL,NULL,NULL,&val);
 
 	Player* player = (Player*)obj;
 	AVFrame *pFrame = av_frame_alloc();
@@ -80,8 +86,9 @@ int Player::codec_video_thread(void* obj){
 	tss  = (tns % 60);
 	int temp = 0;
 
-	for(;;){
-		SDL_LockMutex(p_video_mutex);
+
+	for(;g_exit_code != 1;){
+		pthread_mutex_lock(&p_video_mutex);
 		if (g_video_queue.size() <= 0)
 		{
 			/* code */
@@ -90,9 +97,8 @@ int Player::codec_video_thread(void* obj){
 				/* code */
 				break;
 			}
-			SDL_CondWait(p_cond,p_video_mutex);
-			SDL_UnlockMutex(p_video_mutex);
-
+			pthread_cond_wait(&p_video_cond,&p_video_mutex);
+			pthread_mutex_unlock(&p_video_mutex);
 			continue;
 		}
 
@@ -109,7 +115,7 @@ int Player::codec_video_thread(void* obj){
 		{
 			/* code */
 			printf("decoder error.........\n");
-			SDL_UnlockMutex(p_video_mutex);
+			pthread_mutex_unlock(&p_video_mutex);
 			av_free(packet);
 			break ;
 		}
@@ -134,7 +140,7 @@ int Player::codec_video_thread(void* obj){
 		}
 		
 		ret = g_video_queue.pop();
-		SDL_UnlockMutex(p_video_mutex);
+		pthread_mutex_unlock(&p_video_mutex);
 
 		/**
 		* output media times
@@ -154,13 +160,15 @@ int Player::codec_video_thread(void* obj){
 		}
 		
 		
-		SDL_Delay(30);
+		val.tv_sec= 0;
+		val.tv_usec = 33;
+		select(-1,NULL,NULL,NULL,&val);
 		av_free(packet);
 	}
 	cout<<"player finish........"<<endl;
 	av_free(pFrameYUV);
 
-	return 0;
+	return NULL;
 }
 
 /**
@@ -182,20 +190,23 @@ Uint8  *audio_pos;
     if (audio_len <= 0)
      {
      	/* code */
-     	SDL_CondSignal(p_audiocond);
+     	pthread_cond_signal(&p_audio_cond);
      } 
 }
 
-int Player::codec_audio_thread(void *obj){
+void* Player::codec_audio_thread(void *obj){
 	if (!obj)
 	{
 		/* code */
-		return -1;
+		return NULL;
 	}
 	/**
 	* delay 50ms start player
 	*/
-	SDL_Delay(50);
+	struct timeval val;
+	val.tv_sec= 0;
+	val.tv_usec = 40;
+	select(-1,NULL,NULL,NULL,&val);
 
 	//return 0;
 
@@ -212,7 +223,7 @@ int Player::codec_audio_thread(void *obj){
     if (SDL_OpenAudio(&wanted_spec, NULL)<0)   
     {   
         printf("can't open audio.\n");   
-        return -1;   
+        return NULL;   
     } 
 	AVFrame* pFrame = av_frame_alloc();
 	int tns, thh, tmm, tss;  
@@ -222,13 +233,13 @@ int Player::codec_audio_thread(void *obj){
 	tss  = (tns % 60);
 	int temp = 0;
 
-	for(;;){
-		SDL_LockMutex(p_audio_mutex);
+	for(; g_exit_code != 1;){
+		pthread_mutex_lock(&p_audio_mutex);
 		if (g_audio_queue.size() <= 0)
 		{
 			/* code */
-			SDL_CondWait(p_audiocond,p_audio_mutex);
-			SDL_UnlockMutex(p_audio_mutex);
+			pthread_cond_wait(&p_audio_cond,&p_audio_mutex);
+			pthread_mutex_unlock(&p_audio_mutex);
 			continue;
 		}
 
@@ -241,7 +252,7 @@ int Player::codec_audio_thread(void *obj){
 		{
 			/* code */
 			cout<<"audio  decoder fail.........."<<endl;
-			SDL_UnlockMutex(p_audio_mutex);
+			pthread_mutex_unlock(&p_audio_mutex);
 			av_free(pPacket);
 			break;
 		}
@@ -252,11 +263,11 @@ int Player::codec_audio_thread(void *obj){
         	audio_len = pFrame->linesize[0];  
         	audio_pos = audio_chunk;  
             SDL_PauseAudio(0);  
-            SDL_CondWait(p_audiocond,p_audio_mutex);
+            pthread_cond_wait(&p_audio_cond,&p_audio_mutex);
 		}
 	
 		int code = g_audio_queue.pop();
-		SDL_UnlockMutex(p_audio_mutex);
+		pthread_mutex_unlock(&p_audio_mutex);
 
 		/**
 		* output media times
@@ -278,7 +289,7 @@ int Player::codec_audio_thread(void *obj){
 	}
 	av_free(pFrame);
 
-	return 0;
+	return NULL;
 }
 
 Player::Player(SDL_Surface* screen):
@@ -395,8 +406,8 @@ int Player::player(const char* filename){
 		int screen_w = p_video_codecCtx->width;
 		int screen_h = p_video_codecCtx->height;
 		p_bmp = SDL_CreateYUVOverlay(screen_w,screen_h,SDL_YV12_OVERLAY,this->screen);
-		SDL_CreateThread(codec_video_thread,this);
-
+		
+		pthread_create(&g_video_tid,NULL,codec_video_thread,this);
 		cout<<"video init sucess...................."<<endl;
 	}
 
@@ -418,11 +429,11 @@ int Player::player(const char* filename){
 		}
 		cout<<"audio init  sucess..................."<<endl;
 
-		SDL_CreateThread(codec_audio_thread,this);
+		pthread_create(&g_audio_tid,NULL,codec_audio_thread,this);
 		
 	}
 
-	SDL_CreateThread(read_packet_thread,this);
+	pthread_create(&g_read_tid,NULL,read_packet_thread,this);
 
 	return 1;
 }

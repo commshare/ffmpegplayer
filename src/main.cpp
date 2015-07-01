@@ -8,16 +8,27 @@ using namespace std;
 Queue<AVPacket> g_video_queue;
 Queue<AVPacket> g_audio_queue;
 
-SDL_mutex* p_video_mutex;
-SDL_mutex* p_audio_mutex;	
-SDL_cond *p_cond;
-SDL_cond *p_audiocond;
+pthread_t g_read_tid;
+pthread_t g_video_tid;
+pthread_t g_audio_tid;
+
+int g_exit_code = 0;
+
+#ifdef WIN32
+
+#else
+	pthread_mutex_t p_video_mutex;
+	pthread_mutex_t p_audio_mutex;
+	pthread_cond_t p_video_cond;
+	pthread_cond_t p_audio_cond;
+#endif
+
 
 
 void sig(int sig){
 	printf("obtain sig.....");
 	if(sig == SIGINT){
-		exit(0);
+		g_exit_code = 1;
 	}
 }
 
@@ -40,10 +51,11 @@ int main(int argv,const char* argc[]){
 	SDL_Thread *video_tid;
 	SDL_Event event;
 
-	p_video_mutex = SDL_CreateMutex();
-	p_audio_mutex = SDL_CreateMutex();
-	p_cond = SDL_CreateCond();
-	p_audiocond = SDL_CreateCond();
+	pthread_mutex_init(&p_audio_mutex,NULL);
+	pthread_mutex_init(&p_video_mutex,NULL);
+	pthread_cond_init(&p_video_cond,NULL);
+	pthread_cond_init(&p_audio_cond,NULL);
+
 
 	screen = SDL_SetVideoMode(800,800,0,0);
 	if (!screen)
@@ -64,19 +76,27 @@ int main(int argv,const char* argc[]){
 	}
 	cout<<"player sucess.........."<<endl;
 
-	for(;;){
+	for(;g_exit_code != 1;){
 		SDL_WaitEvent(&event);
 		if (event.type == SDL_QUIT)
 		{
 			/* code */
+			g_exit_code = 1;
 			break;
 		}
 		
 	}
-	SDL_DestroyMutex(p_video_mutex);
-	SDL_DestroyMutex(p_audio_mutex);
-	SDL_DestroyCond(p_cond);
-	SDL_DestroyCond(p_audiocond);
+
+	pthread_cancel(g_read_tid);
+	pthread_cancel(g_video_tid);
+	pthread_cancel(g_audio_tid);
+	pthread_join(g_read_tid,NULL);
+	pthread_join(g_video_tid,NULL);
+	pthread_join(g_audio_tid,NULL);
+	pthread_mutex_destroy(&p_audio_mutex);
+	pthread_mutex_destroy(&p_video_mutex);
+	pthread_cond_destroy(&p_video_cond);
+	pthread_cond_destroy(&p_audio_cond);
 	SDL_Quit();
 	
 	return 0;

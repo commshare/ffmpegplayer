@@ -6,6 +6,9 @@
 #include <signal.h>
 #include <unistd.h>
 #include <SDL/SDL.h>
+#include <pthread.h>
+#include <time.h>
+#include <sys/types.h>
 
 extern "C"
 {
@@ -21,14 +24,24 @@ extern "C"
 
 using namespace std;
 
-
 extern Queue<AVPacket> g_video_queue;
 extern Queue<AVPacket> g_audio_queue;
 
-extern SDL_mutex* p_video_mutex;
-extern SDL_mutex* p_audio_mutex;	
-extern SDL_cond *p_cond;
-extern SDL_cond *p_audiocond;
+extern pthread_t g_read_tid;
+extern pthread_t g_video_tid;
+extern pthread_t g_audio_tid;
+
+extern int g_exit_code;
+
+#ifdef WIN32
+
+#else
+	extern pthread_mutex_t p_video_mutex;
+	extern pthread_mutex_t p_audio_mutex;
+	extern pthread_cond_t p_video_cond;
+	extern pthread_cond_t p_audio_cond;
+#endif
+
 
 class Player{
 public:
@@ -40,15 +53,15 @@ public:
 	/**
 	* read data packet thread from stream
 	*/
-	static int read_packet_thread(void* obj);
+	static void* read_packet_thread(void* obj);
 	/**
 	* codec video thread
 	*/
-	static int codec_video_thread(void* obj);
+	static void* codec_video_thread(void* obj);
 	/**
 	* codec audio thread
 	*/
-	static int codec_audio_thread(void* obj);
+	static void* codec_audio_thread(void* obj);
 
 	inline   AVFormatContext* get_p_formatCtx(){
 		return p_formatCtx;
