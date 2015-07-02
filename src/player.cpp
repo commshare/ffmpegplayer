@@ -29,10 +29,6 @@ RETYPE Player::read_packet_thread(void* obj){
 			{
 				/* code */
 				g_video_queue.push(*pPacket);
-			}else{
-				val.tv_sec= 0;
-				val.tv_usec = 40000;
-				select(-1,NULL,NULL,NULL,&val);
 			}
 			if (g_video_queue.size() == 1)
 			{
@@ -44,6 +40,11 @@ RETYPE Player::read_packet_thread(void* obj){
 #else
 			pthread_mutex_unlock(&p_video_mutex);
 #endif
+			if(g_video_queue.size() >= MAX_BUFFERED_PACKET){
+				val.tv_sec= 0;
+				val.tv_usec = 40000;
+				select(-1,NULL,NULL,NULL,&val);
+			}
 			val.tv_sec= 0;
 			val.tv_usec = 1000;
 			select(-1,NULL,NULL,NULL,&val);
@@ -246,9 +247,10 @@ RETYPE Player::codec_audio_thread(void *obj){
 	Player* player = (Player*)obj;
 
 	SDL_AudioSpec wanted_spec;  
-    wanted_spec.freq = player->get_p_audio_codecCtx()->sample_rate;   
+    wanted_spec.freq = player->get_p_audio_codecCtx()->sample_rate;
+    cout<<"sample_rate:"<<wanted_spec.freq<<endl;   
     wanted_spec.format = AUDIO_S16SYS;   
-    wanted_spec.channels = player->get_p_audio_codecCtx()->channels;   
+    wanted_spec.channels = 1;//player->get_p_audio_codecCtx()->channels;   
     wanted_spec.silence = 0;   
     wanted_spec.samples = 1152;  //mp3 and mav  1152
     wanted_spec.callback = audio_callback;   
