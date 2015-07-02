@@ -5,6 +5,22 @@
 
 using namespace std;
 
+#ifdef WIN32
+	#include <windows.h>
+	#include <process.h>
+	typedef DWORD pthread_t;
+	typedef HANDLE pthread_mutex_t;
+#else
+	#include <sys/time.h>
+	#include <signal.h>
+	#include <unistd.h>
+	#include <SDL/SDL.h>
+	#include <pthread.h>
+	#include <time.h>
+	#include <sys/types.h>
+	typedef void* RETYPE;
+#endif
+
 Queue<AVPacket> g_video_queue;
 Queue<AVPacket> g_audio_queue;
 
@@ -51,10 +67,15 @@ int main(int argv,const char* argc[]){
 	SDL_Thread *video_tid;
 	SDL_Event event;
 
+#ifdef WIN32
+	p_video_mutex = CreateMutex(NULL,false,NULL);
+	p_audio_mutex = CreateMutex(NULL,false,NULL);
+#else
 	pthread_mutex_init(&p_audio_mutex,NULL);
 	pthread_mutex_init(&p_video_mutex,NULL);
 	pthread_cond_init(&p_video_cond,NULL);
 	pthread_cond_init(&p_audio_cond,NULL);
+#endif
 
 
 	screen = SDL_SetVideoMode(800,800,0,0);
@@ -87,6 +108,9 @@ int main(int argv,const char* argc[]){
 		
 	}
 
+#ifdef WIN32
+
+#else
 	pthread_cancel(g_read_tid);
 	pthread_cancel(g_video_tid);
 	pthread_cancel(g_audio_tid);
@@ -97,6 +121,9 @@ int main(int argv,const char* argc[]){
 	pthread_mutex_destroy(&p_video_mutex);
 	pthread_cond_destroy(&p_video_cond);
 	pthread_cond_destroy(&p_audio_cond);
+#endif
+	
+	
 	SDL_Quit();
 	
 	return 0;

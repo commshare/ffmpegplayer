@@ -1,14 +1,21 @@
 #ifndef PLAYER_H_
 #define PLAYER_H_
 
-#include <iostream>
-#include <sys/time.h>
-#include <signal.h>
-#include <unistd.h>
-#include <SDL/SDL.h>
-#include <pthread.h>
-#include <time.h>
-#include <sys/types.h>
+#ifdef WIN32
+	#include <windows.h>
+	#include <process.h>
+	typedef DWORD pthread_t;
+	typedef void RETYPE;
+#else
+	#include <sys/time.h>
+	#include <signal.h>
+	#include <unistd.h>
+	#include <SDL/SDL.h>
+	#include <pthread.h>
+	#include <time.h>
+	#include <sys/types.h>
+	typedef void* RETYPE;
+#endif
 
 extern "C"
 {
@@ -21,7 +28,7 @@ extern "C"
 }
 
 #include "queue.cpp"
-
+#include <iostream>
 using namespace std;
 
 extern Queue<AVPacket> g_video_queue;
@@ -53,15 +60,15 @@ public:
 	/**
 	* read data packet thread from stream
 	*/
-	static void* read_packet_thread(void* obj);
+	static RETYPE read_packet_thread(void* obj);
 	/**
 	* codec video thread
 	*/
-	static void* codec_video_thread(void* obj);
+	static RETYPE codec_video_thread(void* obj);
 	/**
 	* codec audio thread
 	*/
-	static void* codec_audio_thread(void* obj);
+	static RETYPE codec_audio_thread(void* obj);
 
 	inline   AVFormatContext* get_p_formatCtx(){
 		return p_formatCtx;

@@ -6,7 +6,7 @@ static int is_finish = 0;
 static int onces = 0;
 static AVFrame* frist_frame;
 
-void* Player::read_packet_thread(void* obj){
+RETYPE Player::read_packet_thread(void* obj){
 	if (!obj)
 	{
 		/* code */
@@ -19,14 +19,19 @@ void* Player::read_packet_thread(void* obj){
 	while(av_read_frame(player->get_p_formatCtx(),pPacket) >= 0 && g_exit_code != 1){
 		if (pPacket->stream_index == player->m_videoindex){
 			/* code */
+#ifdef WIN32
+			WaitForSingleObject(p_video_mutex,INFINITE);
+#else
 			pthread_mutex_lock(&p_video_mutex);
+#endif
+			
 			if (g_video_queue.size() <= MAX_BUFFERED_PACKET)
 			{
 				/* code */
 				g_video_queue.push(*pPacket);
 			}else{
 				val.tv_sec= 0;
-				val.tv_usec = 40;
+				val.tv_usec = 40000;
 				select(-1,NULL,NULL,NULL,&val);
 			}
 			if (g_video_queue.size() == 1)
@@ -34,21 +39,33 @@ void* Player::read_packet_thread(void* obj){
 				/* code */
 				pthread_cond_signal(&p_video_cond);
 			}
+#ifdef WIN32
+			ReleaseMutex(p_video_mutex);
+#else
 			pthread_mutex_unlock(&p_video_mutex);
+#endif
 			val.tv_sec= 0;
-			val.tv_usec = 1;
+			val.tv_usec = 1000;
 			select(-1,NULL,NULL,NULL,&val);
 		}else if(pPacket->stream_index == player->m_audioindex){
 			/* code */
+#ifdef WIN32
+			WaitForSingleObject(p_audio_mutex,INFINITE);
+#else
 			pthread_mutex_lock(&p_audio_mutex);
+#endif
 			g_audio_queue.push(*pPacket);
 			if(g_audio_queue.size() == 1){
 				pthread_cond_signal(&p_audio_cond);
 			}
+#ifdef WIN32
+			ReleaseMutex(p_audio_mutex);
+#else
 			pthread_mutex_unlock(&p_audio_mutex);
+#endif
 			val.tv_sec= 0;
-			val.tv_usec = 1;
-			select(-1,NULL,NULL,NULL,&val);
+			val.tv_usec = 1000;
+			select(0,NULL,NULL,NULL,&val);
 		}
 	}
 	is_finish = 1;
@@ -62,7 +79,7 @@ void* Player::read_packet_thread(void* obj){
 /**
 * player video thread
 */
-void* Player::codec_video_thread(void* obj){
+RETYPE Player::codec_video_thread(void* obj){
 	if (!obj)
 	{
 		/* code */
@@ -73,8 +90,8 @@ void* Player::codec_video_thread(void* obj){
 	*/
 	struct timeval val;
 	val.tv_sec= 0;
-	val.tv_usec = 40;
-	select(-1,NULL,NULL,NULL,&val);
+	val.tv_usec = 40000;
+	select(0,NULL,NULL,NULL,&val);
 
 	Player* player = (Player*)obj;
 	AVFrame *pFrame = av_frame_alloc();
@@ -88,7 +105,11 @@ void* Player::codec_video_thread(void* obj){
 
 
 	for(;g_exit_code != 1;){
+#ifdef WIN32
+		WaitForSingleObject(p_video_mutex,INFINITE);
+#else
 		pthread_mutex_lock(&p_video_mutex);
+#endif
 		if (g_video_queue.size() <= 0)
 		{
 			/* code */
@@ -98,7 +119,11 @@ void* Player::codec_video_thread(void* obj){
 				break;
 			}
 			pthread_cond_wait(&p_video_cond,&p_video_mutex);
+#ifdef WIN32
+			ReleaseMutex(p_video_mutex);
+#else
 			pthread_mutex_unlock(&p_video_mutex);
+#endif
 			continue;
 		}
 
@@ -115,7 +140,11 @@ void* Player::codec_video_thread(void* obj){
 		{
 			/* code */
 			printf("decoder error.........\n");
+#ifdef WIN32
+			ReleaseMutex(p_video_mutex);
+#else
 			pthread_mutex_unlock(&p_video_mutex);
+#endif
 			av_free(packet);
 			break ;
 		}
@@ -140,7 +169,11 @@ void* Player::codec_video_thread(void* obj){
 		}
 		
 		ret = g_video_queue.pop();
-		pthread_mutex_unlock(&p_video_mutex);
+#ifdef WIN32
+			ReleaseMutex(p_video_mutex);
+#else
+			pthread_mutex_unlock(&p_video_mutex);
+#endif
 
 		/**
 		* output media times
@@ -161,8 +194,8 @@ void* Player::codec_video_thread(void* obj){
 		
 		
 		val.tv_sec= 0;
-		val.tv_usec = 33;
-		select(-1,NULL,NULL,NULL,&val);
+		val.tv_usec = 40000;
+		select(0,NULL,NULL,NULL,&val);
 		av_free(packet);
 	}
 	cout<<"player finish........"<<endl;
@@ -194,7 +227,7 @@ Uint8  *audio_pos;
      } 
 }
 
-void* Player::codec_audio_thread(void *obj){
+RETYPE Player::codec_audio_thread(void *obj){
 	if (!obj)
 	{
 		/* code */
@@ -205,7 +238,7 @@ void* Player::codec_audio_thread(void *obj){
 	*/
 	struct timeval val;
 	val.tv_sec= 0;
-	val.tv_usec = 40;
+	val.tv_usec = 40000;
 	select(-1,NULL,NULL,NULL,&val);
 
 	//return 0;
@@ -234,12 +267,20 @@ void* Player::codec_audio_thread(void *obj){
 	int temp = 0;
 
 	for(; g_exit_code != 1;){
+#ifdef WIN32
+		WaitForSingleObject(p_audio_mutex,INFINITE);
+#else
 		pthread_mutex_lock(&p_audio_mutex);
+#endif
 		if (g_audio_queue.size() <= 0)
 		{
 			/* code */
 			pthread_cond_wait(&p_audio_cond,&p_audio_mutex);
+#ifdef WIN32
+			ReleaseMutex(p_audio_mutex);
+#else
 			pthread_mutex_unlock(&p_audio_mutex);
+#endif
 			continue;
 		}
 
@@ -252,7 +293,11 @@ void* Player::codec_audio_thread(void *obj){
 		{
 			/* code */
 			cout<<"audio  decoder fail.........."<<endl;
+#ifdef WIN32
+			ReleaseMutex(p_audio_mutex);
+#else
 			pthread_mutex_unlock(&p_audio_mutex);
+#endif
 			av_free(pPacket);
 			break;
 		}
@@ -267,7 +312,11 @@ void* Player::codec_audio_thread(void *obj){
 		}
 	
 		int code = g_audio_queue.pop();
-		pthread_mutex_unlock(&p_audio_mutex);
+#ifdef WIN32
+			ReleaseMutex(p_audio_mutex);
+#else
+			pthread_mutex_unlock(&p_audio_mutex);
+#endif
 
 		/**
 		* output media times
@@ -406,8 +455,12 @@ int Player::player(const char* filename){
 		int screen_w = p_video_codecCtx->width;
 		int screen_h = p_video_codecCtx->height;
 		p_bmp = SDL_CreateYUVOverlay(screen_w,screen_h,SDL_YV12_OVERLAY,this->screen);
-		
+#ifdef WIN32
+		g_video_tid = _beginthread(codec_video_thread,0,this);
+#else
 		pthread_create(&g_video_tid,NULL,codec_video_thread,this);
+#endif
+		
 		cout<<"video init sucess...................."<<endl;
 	}
 
@@ -428,12 +481,20 @@ int Player::player(const char* filename){
 			return -1;
 		}
 		cout<<"audio init  sucess..................."<<endl;
-
+#ifdef WIN32
+		g_audio_tid = _beginthread(codec_audio_thread,0,this);
+#else
 		pthread_create(&g_audio_tid,NULL,codec_audio_thread,this);
+#endif
 		
 	}
 
-	pthread_create(&g_read_tid,NULL,read_packet_thread,this);
+#ifdef WIN32
+	g_read_tid = _beginthread(read_packet_thread,0,this);
 
+#else
+	pthread_create(&g_read_tid,NULL,read_packet_thread,this);
+#endif
+	
 	return 1;
 }
