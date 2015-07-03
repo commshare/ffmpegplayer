@@ -104,6 +104,7 @@ int main(int argv,const char* argc[]){
 			/* code */
 			g_exit_code = 1;
 			break;
+			//player.next("zhou.mp4");
 		}
 		
 	}
@@ -125,6 +126,6 @@ int main(int argv,const char* argc[]){
 	
 	
 	SDL_Quit();
-	
+
 	return 0;
 }

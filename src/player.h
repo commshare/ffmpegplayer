@@ -70,6 +70,33 @@ public:
 	*/
 	static RETYPE codec_audio_thread(void* obj);
 
+	/**
+	* pause player
+	*/
+	void pause();
+	/**
+	* resume player while pause
+	*/
+	void resume();
+	/**
+	* stop player
+	*/
+	void stop();
+	/**
+	* restart player
+	*/
+	void restart();
+	/**
+	* next a media
+	*/
+	int next(const char* name);
+	/**
+	* next segment
+	*/
+	void forword(const int value);
+
+	void release();
+
 	inline   AVFormatContext* get_p_formatCtx(){
 		return p_formatCtx;
 	}
@@ -101,6 +128,8 @@ public:
 	int m_audioindex;
 
 
+	static int ispause;
+	static int isstop;
 
 	/**
 	* display

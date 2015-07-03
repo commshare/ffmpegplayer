@@ -86,12 +86,13 @@ void Queue<T>::clear(){
 	}
 
 	List* temp = this->m_head->next;
+	List* te = temp;
 	while(temp != NULL){
-		List* te = temp->next;
+		te = temp->next;
 		delete temp;
 		temp = te;
 	}
-
+	this->m_head->next = NULL;
 	this->m_size = 0;
 }
 

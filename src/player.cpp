@@ -6,6 +6,9 @@ static int is_finish = 0;
 static int onces = 0;
 static AVFrame* frist_frame;
 
+int Player::ispause = 0;
+int Player::isstop = 0;
+
 RETYPE Player::read_packet_thread(void* obj){
 	if (!obj)
 	{
@@ -14,9 +17,18 @@ RETYPE Player::read_packet_thread(void* obj){
 	}
 	Player* player = (Player*)obj;
 	AVPacket *pPacket = (AVPacket*)av_malloc(sizeof(AVPacket));
-	
 	struct timeval val;
 	while(av_read_frame(player->get_p_formatCtx(),pPacket) >= 0 && g_exit_code != 1){
+		if (Player::ispause == 1)
+		{
+			/* code */
+			while(Player::ispause == 1);
+		}
+		if (Player::isstop == 1)
+		{
+			/* code */
+			break;
+		}
 		if (pPacket->stream_index == player->m_videoindex){
 			/* code */
 #ifdef WIN32
@@ -24,17 +36,13 @@ RETYPE Player::read_packet_thread(void* obj){
 #else
 			pthread_mutex_lock(&p_video_mutex);
 #endif
-			
 			if (g_video_queue.size() <= MAX_BUFFERED_PACKET)
 			{
 				/* code */
 				g_video_queue.push(*pPacket);
 			}
-			if (g_video_queue.size() == 1)
-			{
-				/* code */
-				pthread_cond_signal(&p_video_cond);
-			}
+			
+			pthread_cond_signal(&p_video_cond);
 #ifdef WIN32
 			ReleaseMutex(p_video_mutex);
 #else
@@ -104,13 +112,25 @@ RETYPE Player::codec_video_thread(void* obj){
 	tss  = (tns % 60);
 	int temp = 0;
 
-
 	for(;g_exit_code != 1;){
+
+		if (Player::ispause == 1)
+		{
+			/* code */
+			while(Player::ispause == 1);
+		}
+		if (Player::isstop == 1)
+		{
+			/* code */
+			break;
+		}
+
 #ifdef WIN32
 		WaitForSingleObject(p_video_mutex,INFINITE);
 #else
 		pthread_mutex_lock(&p_video_mutex);
 #endif
+
 		if (g_video_queue.size() <= 0)
 		{
 			/* code */
@@ -119,6 +139,7 @@ RETYPE Player::codec_video_thread(void* obj){
 				/* code */
 				break;
 			}
+
 			pthread_cond_wait(&p_video_cond,&p_video_mutex);
 #ifdef WIN32
 			ReleaseMutex(p_video_mutex);
@@ -127,7 +148,7 @@ RETYPE Player::codec_video_thread(void* obj){
 #endif
 			continue;
 		}
-
+		
 		AVPacket* packet = (AVPacket*)av_malloc(sizeof(AVPacket));
 		*packet = g_video_queue.queue();
 		int got = 0;
@@ -199,7 +220,7 @@ RETYPE Player::codec_video_thread(void* obj){
 		select(0,NULL,NULL,NULL,&val);
 		av_free(packet);
 	}
-	cout<<"player finish........"<<endl;
+	cout<<"video thread over finish........"<<endl;
 	av_free(pFrameYUV);
 
 	return NULL;
@@ -269,6 +290,17 @@ RETYPE Player::codec_audio_thread(void *obj){
 	int temp = 0;
 
 	for(; g_exit_code != 1;){
+		if (Player::ispause == 1)
+		{
+			/* code */
+			while(Player::ispause == 1);
+		}
+
+		if (Player::isstop == 1)
+		{
+			/* code */						
+			break;
+		}
 #ifdef WIN32
 		WaitForSingleObject(p_audio_mutex,INFINITE);
 #else
@@ -340,6 +372,10 @@ RETYPE Player::codec_audio_thread(void *obj){
 	}
 	av_free(pFrame);
 
+	SDL_CloseAudio();
+
+	cout<<"audio thread over..............."<<endl;
+
 	return NULL;
 }
 
@@ -350,19 +386,26 @@ m_videoindex(-1),m_audioindex(-1){
 }
 
 Player::~Player(){
+	this->release();
+}
+
+void Player::release(){
 	if (p_video_codecCtx)
 	{
 		/* code */
 		avcodec_close(p_video_codecCtx);
+		p_video_codecCtx = NULL;
 	}
 
 	if (p_audio_codecCtx)
 	{
 		/* code */
 		avcodec_close(p_audio_codecCtx);
+		p_audio_codecCtx = NULL;
 	}
 	
 	avformat_close_input(&p_formatCtx);
+	//p_formatCtx = NULL;
 }
 
 void Player::onInit(){
@@ -371,15 +414,10 @@ void Player::onInit(){
 	avcodec_register_all();
 	avformat_network_init();
 
-	p_formatCtx = avformat_alloc_context();
-	if (!p_formatCtx)
-	{
-		/* code */
-		m_sign = -1;
-		return;
-	}
+	
 	p_video_codecCtx = NULL;
 	p_audio_codecCtx = NULL;
+	p_formatCtx = NULL;
 
 }
 
@@ -387,6 +425,14 @@ int Player::player(const char* filename){
 	if (m_sign == -1 || !filename)
 	{
 		/* code */
+		return -1;
+	}
+
+	p_formatCtx = avformat_alloc_context();
+	if (!p_formatCtx)
+	{
+		/* code */
+		m_sign = -1;
 		return -1;
 	}
 
@@ -401,6 +447,10 @@ int Player::player(const char* filename){
 		cout<<"find stream info fail.........."<<endl;
 		return -1;
 	}
+
+	ispause = 0;
+	isstop = 0;
+	is_finish = 0;
 
 	m_videoindex = -1;
 	m_audioindex = -1;
@@ -460,6 +510,7 @@ int Player::player(const char* filename){
 #ifdef WIN32
 		g_video_tid = _beginthread(codec_video_thread,0,this);
 #else
+		pthread_mutex_unlock(&p_video_mutex);
 		pthread_create(&g_video_tid,NULL,codec_video_thread,this);
 #endif
 		
@@ -486,6 +537,7 @@ int Player::player(const char* filename){
 #ifdef WIN32
 		g_audio_tid = _beginthread(codec_audio_thread,0,this);
 #else
+		pthread_mutex_unlock(&p_audio_mutex);
 		pthread_create(&g_audio_tid,NULL,codec_audio_thread,this);
 #endif
 		
@@ -499,4 +551,43 @@ int Player::player(const char* filename){
 #endif
 	
 	return 1;
+}
+
+void Player::pause(){
+	ispause = 1;
+}
+
+void Player::resume(){
+	ispause = 0;
+}
+
+void Player::stop(){
+	isstop = 1;
+}
+
+void Player::restart(){
+	ispause = 0;
+	isstop = 0;
+}
+
+int Player::next(const char* name){
+	ispause = 0;
+	isstop = 1;
+
+	pthread_cancel(g_read_tid);
+	pthread_cancel(g_video_tid);
+	pthread_cancel(g_audio_tid);
+	pthread_join(g_read_tid,NULL);
+	pthread_join(g_video_tid,NULL);
+	pthread_join(g_audio_tid,NULL);
+	cout<<"create thread start...................."<<endl;
+	this->release();
+	g_video_queue.clear();
+	g_audio_queue.clear();
+
+	return this->player(name);
+}
+
+void Player::forword(const int value){
+
 }
