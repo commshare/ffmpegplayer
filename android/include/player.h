@@ -49,9 +49,13 @@ extern pthread_mutex_t p_audio_mutex;
 extern pthread_cond_t p_video_cond;
 extern pthread_cond_t p_audio_cond;
 
+void status_callback_main(int code);
+void status_callback_thread(int code);
+
 class Player{
 public:
 	static Player* getInstance();
+	static void releaseInstance();
 	static Player* play;
 	~Player();
 
@@ -112,6 +116,10 @@ public:
 		return p_audio_codecCtx;
 	}
 
+	inline struct SwsContext* get_img_convert_ctx(){
+		return img_convert_ctx;
+	}
+
 	/**
 	* get times about video /audio /stream
 	*/
@@ -158,3 +166,4 @@ public:
 };
 
 #endif
+

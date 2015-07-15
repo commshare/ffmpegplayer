@@ -1,10 +1,11 @@
 #include "player.h"
 #include "convert.h"
 
+#include "errorcode.h"
 #include "log.h"
 #include <jni.h>
 
-#define MAX_BUFFERED_PACKET 100
+#define MAX_BUFFERED_PACKET 300
 
 Queue<AVPacket> g_video_queue;
 Queue<AVPacket> g_audio_queue;
@@ -27,6 +28,22 @@ int Player::ispause = 0;
 int Player::isstop = 0;
 Player* Player::play = NULL;
 
+
+void status_callback_main(int code){
+	g_env->CallVoidMethod(g_job,g_method,code);
+}
+
+void status_callback_thread(int code){
+	JNIEnv* env;
+	jclass jcls;
+	g_jvm->AttachCurrentThread(&env, NULL);  
+
+	jclass cls = env->GetObjectClass(g_job); 
+	jmethodID methodid = env->GetMethodID(cls,"statusCallback","(I)V"); 
+	env->CallVoidMethod(g_job,methodid,code);
+	g_jvm->DetachCurrentThread();
+}
+
 Player* Player::getInstance(){
 	if (play == NULL)
 	{
@@ -35,6 +52,21 @@ Player* Player::getInstance(){
 	}
 
 	return play;
+}
+
+void Player::releaseInstance(){
+	if (play == NULL)
+	{
+		/* code */
+		return;
+	}
+
+	delete play;
+}
+
+void kill_pthread(int sig){
+	LOGE("..........thread signal.....................");
+	pthread_exit(NULL);
 }
 
 RETYPE Player::read_packet_thread(void* obj){
@@ -50,7 +82,12 @@ RETYPE Player::read_packet_thread(void* obj){
 		if (Player::ispause == 1)
 		{
 			/* code */
-			while(Player::ispause == 1);
+			while(Player::ispause == 1){
+				struct timeval val;
+				val.tv_sec= 0;
+				val.tv_usec = 1000;
+				select(-1,NULL,NULL,NULL,&val);
+			}
 		}
 		if (Player::isstop == 1)
 		{
@@ -79,11 +116,11 @@ RETYPE Player::read_packet_thread(void* obj){
 			if(g_video_queue.size() >= MAX_BUFFERED_PACKET){
 				val.tv_sec= 0;
 				val.tv_usec = 40000;
-				select(-1,NULL,NULL,NULL,&val);
+				select(0,NULL,NULL,NULL,&val);
 			}
 			val.tv_sec= 0;
 			val.tv_usec = 1000;
-			select(-1,NULL,NULL,NULL,&val);
+			select(0,NULL,NULL,NULL,&val);
 		}else if(pPacket->stream_index == player->m_audioindex){
 			/* code */
 #ifdef WIN32
@@ -105,11 +142,9 @@ RETYPE Player::read_packet_thread(void* obj){
 			select(0,NULL,NULL,NULL,&val);
 		}
 	}
+	LOGE(".........read package finish.............");
 	is_finish = 1;
-	LOGI("video_queue size:%s",g_video_queue.size());
-	LOGI("audio_queue size:%s",g_audio_queue.size());
 	av_free(pPacket);
-
 	return NULL;
 }
 
@@ -141,7 +176,12 @@ RETYPE Player::codec_video_thread(void* obj){
 		if (Player::ispause == 1)
 		{
 			/* code */
-			while(Player::ispause == 1);
+			while(Player::ispause == 1){
+				struct timeval val;
+				val.tv_sec= 0;
+				val.tv_usec = 1000;
+				select(0,NULL,NULL,NULL,&val);
+			}
 		}
 		if (Player::isstop == 1)
 		{
@@ -181,6 +221,7 @@ RETYPE Player::codec_video_thread(void* obj){
 		
 		if (onces == 0)
 		{
+			status_callback_thread(PLAY_START);
 			onces = 1;
 		}
 
@@ -189,6 +230,7 @@ RETYPE Player::codec_video_thread(void* obj){
 			/* code */
 			char buf[1024] = {0};
 			av_strerror(ret,buf,1024);
+			status_callback_thread(VIDEO_DECODEC_FAIL);
 			LOGE("decoder error....%d.....%s    %d",ret,buf,g_video_queue.size());
 #ifdef WIN32
 			ReleaseMutex(p_video_mutex);
@@ -202,12 +244,10 @@ RETYPE Player::codec_video_thread(void* obj){
 		{
 			//will frame change to byte data//
 			if(g_jvm != NULL){
-				//http://www.xuebuyuan.com/1469657.html
 				unsigned char *decode_yuv420pBuf = NULL;
 				int decode_buffLen = player->get_p_video_codecCtx()->height * player->get_p_video_codecCtx()->width*3/2;
-				//int decode_buffLen = pFrame->height * pFrame->width;
 				decode_yuv420pBuf = (unsigned char *)malloc(decode_buffLen * sizeof(unsigned char));
-				 memset(decode_yuv420pBuf, 0, player->get_p_video_codecCtx()->height * player->get_p_video_codecCtx()->width * 3 / 2);
+				memset(decode_yuv420pBuf, 0, player->get_p_video_codecCtx()->height * player->get_p_video_codecCtx()->width * 3/2);
 				int i, j, nDataLen ;
 				for (i=0, nDataLen=0; i<3; i++)
 				{
@@ -222,20 +262,21 @@ RETYPE Player::codec_video_thread(void* obj){
 					}
 				}
 			
+				
 				JNIEnv* env;
 				jclass jcls;
-				g_jvm->AttachCurrentThread(&env, NULL);  //必须AttachCurrentThread，env只能在自己的线程里面使用
-				//http://www.cnblogs.com/lovingprince/archive/2008/08/19/2166366.html
-				jbyteArray RtnArr = NULL;  //下面一系列操作把btPath转成jbyteArray 返回出去
+				g_jvm->AttachCurrentThread(&env, NULL); 
+				jbyteArray RtnArr = NULL;  
     			RtnArr =env->NewByteArray(nDataLen);
     			env->SetByteArrayRegion(RtnArr, 0, nDataLen, (jbyte*)decode_yuv420pBuf);
 
 				jclass cls = env->GetObjectClass(g_job); 
  				jmethodID methodid = env->GetMethodID(cls,"disPlayer","([BII)V"); 
-				env->CallVoidMethod(g_job,methodid,RtnArr,pFrame->height,pFrame->width);
+				env->CallVoidMethod(g_job,methodid,RtnArr,player->get_p_video_codecCtx()->height,player->get_p_video_codecCtx()->width);
 				g_jvm->DetachCurrentThread();
 				free(decode_yuv420pBuf);
 				//free(buf);
+				
 			}
 			
 		}
@@ -266,13 +307,12 @@ RETYPE Player::codec_video_thread(void* obj){
 		
 		
 		val.tv_sec= 0;
-		val.tv_usec = 30000;
+		val.tv_usec = 40000;
 		select(0,NULL,NULL,NULL,&val);
 		av_free(packet);
 	}
-	LOGI("video thread over finish........");
+	LOGE("video thread over finish........");
 	av_free(pFrameYUV);
-
 	return NULL;
 }
 
@@ -305,7 +345,12 @@ RETYPE Player::codec_audio_thread(void *obj){
 		if (Player::ispause == 1)
 		{
 			/* code */
-			while(Player::ispause == 1);
+			while(Player::ispause == 1){
+				struct timeval val;
+				val.tv_sec= 0;
+				val.tv_usec = 1000;
+				select(-1,NULL,NULL,NULL,&val);
+			}
 		}
 
 		if (Player::isstop == 1)
@@ -344,6 +389,7 @@ RETYPE Player::codec_audio_thread(void *obj){
 #else
 			pthread_mutex_unlock(&p_audio_mutex);
 #endif
+			status_callback_thread(AUDIO_DECODEC_FAIL);
 			av_free(pPacket);
 			break;
 		}
@@ -382,7 +428,7 @@ RETYPE Player::codec_audio_thread(void *obj){
 	av_free(pFrame);
 
 	LOGI("audio thread over...............");
-
+	pthread_exit(NULL);
 	return NULL;
 }
 
@@ -403,15 +449,20 @@ m_videoindex(-1),m_audioindex(-1){
 
 Player::~Player(){
 	this->release();
+	g_exit_code = 1;
+	ispause = 0;
+	isstop = 1;
+	is_finish = 1;
+	sws_freeContext(img_convert_ctx);
 #ifdef WIN32
 
 #else
-	// pthread_kill(g_read_tid,SIGKILL);
-	// pthread_kill(g_video_tid,SIGKILL);
-	// pthread_kill(g_audio_tid,SIGKILL);
-	// pthread_join(g_read_tid,NULL);
-	// pthread_join(g_video_tid,NULL);
-	// pthread_join(g_audio_tid,NULL);
+	pthread_kill(g_read_tid,SIGKILL);
+	pthread_kill(g_video_tid,SIGKILL);
+	pthread_kill(g_audio_tid,SIGKILL);
+	pthread_join(g_read_tid,NULL);
+	pthread_join(g_video_tid,NULL);
+	pthread_join(g_audio_tid,NULL);
 	pthread_mutex_destroy(&p_audio_mutex);
 	pthread_mutex_destroy(&p_video_mutex);
 	pthread_cond_destroy(&p_video_cond);
@@ -421,14 +472,6 @@ Player::~Player(){
 
 void Player::release(){
 
-	g_exit_code = 1;
-	pthread_kill(g_read_tid,SIGKILL);
-	pthread_kill(g_video_tid,SIGKILL);
-	pthread_kill(g_audio_tid,SIGKILL);
-	pthread_join(g_read_tid,NULL);
-	pthread_join(g_video_tid,NULL);
-	pthread_join(g_audio_tid,NULL);
-	
 	if (p_video_codecCtx)
 	{
 		/* code */
@@ -444,7 +487,6 @@ void Player::release(){
 	}
 	
 	avformat_close_input(&p_formatCtx);
-	sws_freeContext(img_convert_ctx);
 	//p_formatCtx = NULL;
 }
 
@@ -463,6 +505,7 @@ void Player::onInit(){
 
 int Player::player(const char* filename){
 	LOGI("Player start..........................");
+	status_callback_main(INIT_START);
 	if (m_sign == -1 || !filename)
 	{
 		/* code */
@@ -482,6 +525,7 @@ int Player::player(const char* filename){
 		char buf[1024] = {0};
 		av_strerror(av,buf,1024);
 		LOGE("avformat_open_input fail........%d........%s",av,buf);
+		status_callback_main(OPEN_MEDIA_FAIL);
 		return -1;
 	}
 
@@ -489,15 +533,18 @@ int Player::player(const char* filename){
 	{
 		/* code */
 		LOGE("find stream info fail.............");
+		status_callback_main(NO_MEDIA_INPUT_INFO);
 		return -1;
 	}
 
 	ispause = 0;
 	isstop = 0;
+	onces = 0;
 	is_finish = 0;
 
 	m_videoindex = -1;
 	m_audioindex = -1;
+	g_exit_code = 0;
 	int ii = 0;
 
 
@@ -522,6 +569,7 @@ int Player::player(const char* filename){
 	{
 		/* code */
 		LOGE("Didn't find video stream.......%s",strerror(errno));
+		status_callback_main(DECODEC_INIT_FAIL);
 		return -1;
 	}
 
@@ -538,17 +586,20 @@ int Player::player(const char* filename){
 		{
 			/* code */
 			LOGE("Could not found video codec....");
+			status_callback_main(NO_DECODEC);
 			return -1;
 		}
 		if (avcodec_open2(p_video_codecCtx,p_video_codec,NULL) < 0)
 		{
 			LOGE("Could not open video codec......");
+			status_callback_main(OPEN_VIDEO_DECODEC_FAIL);
 			return -1;
 		}
 
 		img_convert_ctx = sws_getContext(p_video_codecCtx->width, p_video_codecCtx->height, 
 			p_video_codecCtx->pix_fmt, p_video_codecCtx->width, p_video_codecCtx->height, 
-			PIX_FMT_YUV420P, SWS_BICUBIC, NULL, NULL, NULL); 
+			PIX_FMT_RGB32, SWS_BICUBIC, NULL, NULL, NULL); 
+			//PIX_FMT_YUV420P, SWS_BICUBIC, NULL, NULL, NULL); 
 
 #ifdef WIN32
 		g_video_tid = _beginthread(codec_video_thread,0,this);
@@ -567,6 +618,7 @@ int Player::player(const char* filename){
 		if (!p_audio_codec)
 		{
 			LOGE("Could not found audio codec.....");
+			status_callback_main(NO_DECODEC);
 			return -1;
 		}
 
@@ -574,6 +626,7 @@ int Player::player(const char* filename){
 		if (avcodec_open2(p_audio_codecCtx,p_audio_codec,NULL) < 0)
 		{
 			LOGE("Could not open audio codec......");
+			status_callback_main(OPEN_AUDIO_DECODEC_FAIL);
 			return -1;
 		}
 		LOGI("audio init  sucess...................");
@@ -581,7 +634,7 @@ int Player::player(const char* filename){
 		g_audio_tid = _beginthread(codec_audio_thread,0,this);
 #else
 		pthread_mutex_unlock(&p_audio_mutex);
-		pthread_create(&g_audio_tid,NULL,codec_audio_thread,this);
+		//pthread_create(&g_audio_tid,NULL,codec_audio_thread,this);
 #endif
 		
 	}
@@ -614,17 +667,27 @@ void Player::restart(){
 }
 
 int Player::next(const char* name){
+	//return -1;
+
+	status_callback_main(PLAY_NEXT);
 	ispause = 0;
 	isstop = 1;
+	g_exit_code = 1;
 
-	// pthread_kill(g_read_tid,SIGKILL);
-	// pthread_kill(g_video_tid,SIGKILL);
-	// pthread_kill(g_audio_tid,SIGKILL);
-	// pthread_join(g_read_tid,NULL);
-	// pthread_join(g_video_tid,NULL);
-	// pthread_join(g_audio_tid,NULL);
+	struct timeval val;
+	val.tv_sec= 0;
+	val.tv_usec = 40000;
+	select(0,NULL,NULL,NULL,&val);
 
+	pthread_cond_signal(&p_video_cond);
+	pthread_cond_signal(&p_audio_cond);
+	
+	pthread_join(g_read_tid,NULL);
+	
+	pthread_join(g_video_tid,NULL);
+	
 	this->release();
+
 	g_video_queue.clear();
 	g_audio_queue.clear();
 

@@ -27,11 +27,12 @@ JNIEXPORT jint JNICALL Java_com_lingo_ffmpeg_lingoplayer_FFMpegLib_initplayer
 
 	
 	g_job = env->NewGlobalRef(job);
+  g_env = env;
 
 	env->GetJavaVM(&g_jvm);
 
-	//g_method = g_env->GetMethodID(g_env->GetObjectClass(g_job),"nativeCall","()I");  
-	//g_env->CallIntMethod(g_job,g_method); 
+  jclass cls = env->GetObjectClass(g_job); 
+  g_method = env->GetMethodID(cls,"statusCallback","(I)V"); 
 
 	return 1;
 }
@@ -68,7 +69,7 @@ JNIEXPORT jint JNICALL Java_com_lingo_ffmpeg_lingoplayer_FFMpegLib_resume
   	if (g_player != NULL)
   	{
   		/* code */
-  		//g_player->resume();
+  		g_player->resume();
   		return 1;
   	}
 
@@ -92,7 +93,7 @@ JNIEXPORT jint JNICALL Java_com_lingo_ffmpeg_lingoplayer_FFMpegLib_release
   	if (g_player != NULL)
   	{
   		/* code */
-  		g_player->release();
+  		Player::releaseInstance();
   		return 1;
   	}
 
@@ -101,14 +102,16 @@ JNIEXPORT jint JNICALL Java_com_lingo_ffmpeg_lingoplayer_FFMpegLib_release
 
 JNIEXPORT jint JNICALL Java_com_lingo_ffmpeg_lingoplayer_FFMpegLib_next
   (JNIEnv *env, jobject job, jstring jstr){
-  	const char* name = (char*)env->GetStringUTFChars(jstr,0);
+    LOGE("....................next.................");
+  	const char* name = env->GetStringUTFChars(jstr,false);
   	LOGE("next url is :%s",name);
   	if (g_player != NULL)
   	{
   		/* code */
-		int ret = g_player->next(name);
-		return ret;
+		  int ret = g_player->next(name);
+		  return ret;
   	}
 
 	return 5;
 }
+
