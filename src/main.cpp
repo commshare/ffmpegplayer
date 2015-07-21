@@ -102,9 +102,9 @@ int main(int argv,const char* argc[]){
 		if (event.type == SDL_QUIT)
 		{
 			/* code */
-			g_exit_code = 1;
-			break;
-			//player.next("zhou.mp4");
+			//g_exit_code = 1;
+			//break;
+			player.next("zhou.mp4");
 		}
 		
 	}
@@ -112,9 +112,9 @@ int main(int argv,const char* argc[]){
 #ifdef WIN32
 
 #else
-	pthread_cancel(g_read_tid);
-	pthread_cancel(g_video_tid);
-	pthread_cancel(g_audio_tid);
+	pthread_kill(g_read_tid,SIGKILL);
+	pthread_kill(g_video_tid,SIGKILL);
+	pthread_kill(g_audio_tid,SIGKILL);
 	pthread_join(g_read_tid,NULL);
 	pthread_join(g_video_tid,NULL);
 	pthread_join(g_audio_tid,NULL);

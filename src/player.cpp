@@ -173,11 +173,11 @@ RETYPE Player::codec_video_thread(void* obj){
 		if (got)
 		{
 			pFrameYUV->data[0] = player->p_bmp->pixels[0];
-			pFrameYUV->data[1] = player->p_bmp->pixels[1];
-			pFrameYUV->data[2] = player->p_bmp->pixels[2];
+			pFrameYUV->data[1] = player->p_bmp->pixels[2];
+			pFrameYUV->data[2] = player->p_bmp->pixels[1];
 			pFrameYUV->linesize[0] = player->p_bmp->pitches[0];
-			pFrameYUV->linesize[1] = player->p_bmp->pitches[1];
-			pFrameYUV->linesize[2] = player->p_bmp->pitches[2];
+			pFrameYUV->linesize[1] = player->p_bmp->pitches[2];
+			pFrameYUV->linesize[2] = player->p_bmp->pitches[1];
 
 			sws_scale(player->img_convert_ctx, (const uint8_t* const*)pFrame->data, pFrame->linesize, 0, player->get_p_video_codecCtx()->height, pFrameYUV->data, pFrameYUV->linesize);
 			SDL_Rect rect;
@@ -574,9 +574,9 @@ int Player::next(const char* name){
 	ispause = 0;
 	isstop = 1;
 
-	pthread_cancel(g_read_tid);
-	pthread_cancel(g_video_tid);
-	pthread_cancel(g_audio_tid);
+	pthread_kill(g_read_tid,SIGKILL);
+	pthread_kill(g_video_tid,SIGKILL);
+	pthread_kill(g_audio_tid,SIGKILL);
 	pthread_join(g_read_tid,NULL);
 	pthread_join(g_video_tid,NULL);
 	pthread_join(g_audio_tid,NULL);
