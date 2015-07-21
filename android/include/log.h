@@ -1,5 +1,6 @@
 #ifndef LOG_H_
 #define LOG_H_
+
 #ifdef __cplusplus
 extern "C" {
 #endif

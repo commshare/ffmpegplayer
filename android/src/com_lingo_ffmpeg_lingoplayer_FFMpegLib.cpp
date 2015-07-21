@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include "player.h"
 #include "log.h"
+#include "errorcode.h"
 #ifdef __cplusplus
 extern "C" 
 {
@@ -44,10 +45,12 @@ JNIEXPORT jint JNICALL Java_com_lingo_ffmpeg_lingoplayer_FFMpegLib_player
   	if (g_player != NULL)
   	{
   		/* code */
-		int ret = g_player->player(name);
-		return ret;
+  		int ret = g_player->player(name);
+  		return ret;
+
   	}
-  	
+
+
 	return 0;
 }
 
@@ -59,6 +62,7 @@ JNIEXPORT jint JNICALL Java_com_lingo_ffmpeg_lingoplayer_FFMpegLib_pause
   		g_player->pause();
   		return 1;
   	}
+
 
 	return 0;
 }
@@ -73,6 +77,7 @@ JNIEXPORT jint JNICALL Java_com_lingo_ffmpeg_lingoplayer_FFMpegLib_resume
   		return 1;
   	}
 
+
 	return 0;
 }
 
@@ -85,6 +90,7 @@ JNIEXPORT jint JNICALL Java_com_lingo_ffmpeg_lingoplayer_FFMpegLib_stop
   		return 1;
   	}
 
+
 	return 0;
 }
 
@@ -94,8 +100,10 @@ JNIEXPORT jint JNICALL Java_com_lingo_ffmpeg_lingoplayer_FFMpegLib_release
   	{
   		/* code */
   		Player::releaseInstance();
+      g_player = NULL;
   		return 1;
   	}
+
 
   	return 0;
 }
@@ -112,6 +120,6 @@ JNIEXPORT jint JNICALL Java_com_lingo_ffmpeg_lingoplayer_FFMpegLib_next
 		  return ret;
   	}
 
-	return 5;
-}
 
+	 return 5;
+}

@@ -208,66 +208,58 @@ void ConvertYCbCrToRGB565(const uint8* y_buf,
 	}
 }
 
-void YUV420_C_RGB( char* pYUV, unsigned char* pRGB, int height, int width)  
-{  
-    char* pY = pYUV;  
-    char* pU = pYUV+height*width;  
-    char* pV = pU+(height*width/4);  
+void cvt_420p_to_rgb565(int width, int height, const unsigned char *src, unsigned short *dst)
+{
+  int line, col, linewidth;
+  int y, u, v, yy, vr, ug, vg, ub;
+  int r, g, b;
+  const unsigned char *py, *pu, *pv;
+
+  linewidth = width >> 1;
+  py = src;
+  pu = py + (width * height);
+  pv = pu + (width * height) / 4;
+
+  y = *py++;
+  yy = y << 8;
+  u = *pu - 128;
+  ug = 88 * u;
+  ub = 454 * u;
+  v = *pv - 128;
+  vg = 183 * v;
+  vr = 359 * v;
+
+  for (line = 0; line < height; line++) {
+    for (col = 0; col < width; col++) {
+      r = (yy + vr) >> 8;
+      g = (yy - ug - vg) >> 8;
+      b = (yy + ub ) >> 8;
+
+      if (r < 0) r = 0;
+      if (r > 255) r = 255;
+      if (g < 0) g = 0;
+      if (g > 255) g = 255;
+      if (b < 0) b = 0;
+      if (b > 255) b = 255;
+      *dst++ = (((unsigned short)r>>3)<<11) | (((unsigned short)g>>2)<<5) | (((unsigned short)b>>3)<<0);
   
-  
-    unsigned char* pBGR = NULL;  
-    unsigned char R = 0;  
-    unsigned char G = 0;  
-    unsigned char B = 0;  
-    char Y = 0;  
-    char U = 0;  
-    char V = 0;  
-    double tmp = 0;  
-    for ( int i = 0; i < height; ++i )  
-    {  
-        for ( int j = 0; j < width; ++j )  
-        {  
-            pBGR = pRGB+ i*width*3+j*3;  
-  
-            Y = *(pY+i*width+j);  
-            U = *pU;  
-            V = *pV;  
-  
-            //B  
-            tmp = MB(Y, U, V);  
-            //B = (tmp > 255) ? 255 : (char)tmp;  
-            //B = (B<0) ? 0 : B;  
-            B = (unsigned char)tmp;  
-            //G  
-            tmp = MG(Y, U, V);  
-            //G = (tmp > 255) ? 255 : (char)tmp;  
-           // G = (G<0) ? 0 : G;  
-            G = (unsigned char)tmp;  
-            //R  
-            tmp = MR(Y, U, V);  
-            //R = (tmp > 255) ? 255 : (char)tmp;  
-            //R = (R<0) ? 0 : R;  
-            R = (unsigned char)tmp;  
-  
-  
-            *pBGR     = R;              
-            *(pBGR+1) = G;          
-            *(pBGR+2) = B;  
-          
-  
-            if ( i%2 == 0 && j%2 == 0)  
-            {  
-                *pU++;  
-                //*pV++;  
-            }  
-            else  
-            {  
-                if ( j%2 == 0 )  
-                {  
-                    *pV++ ;  
-                }  
-            }  
-        }  
-      
-    }  
+      y = *py++;
+      yy = y << 8;
+      if (col & 1) {
+    pu++;
+    pv++;
+
+    u = *pu - 128;
+    ug = 88 * u;
+    ub = 454 * u;
+    v = *pv - 128;
+    vg = 183 * v;
+    vr = 359 * v;
+      }
+    }
+    if ((line & 1) == 0) {
+      pu -= linewidth;
+      pv -= linewidth;
+    }
+  }
 }

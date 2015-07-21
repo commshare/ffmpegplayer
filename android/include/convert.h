@@ -24,6 +24,6 @@ void ConvertYCbCrToRGB565(const uint8* y_buf,
 						  int rgb_pitch,
 						  int yuv_type);
 
-void YUV420_C_RGB( char* pYUV, unsigned char* pRGB, int height, int width);
+void cvt_420p_to_rgb565(int width, int height, const unsigned char *src, unsigned short *dst);
 
 #endif

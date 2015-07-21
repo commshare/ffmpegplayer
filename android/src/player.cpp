@@ -62,6 +62,7 @@ void Player::releaseInstance(){
 	}
 
 	delete play;
+	play = NULL;
 }
 
 void kill_pthread(int sig){
@@ -252,6 +253,7 @@ RETYPE Player::codec_video_thread(void* obj){
 				for (i=0, nDataLen=0; i<3; i++)
 				{
 					int nShift = (i==0)?0:1;
+				
 					unsigned char *pYUVData = (unsigned char *)pFrame->data[i];
 					for (j=0; j< (player->get_p_video_codecCtx()->height>>nShift); j++)
 					{
@@ -397,6 +399,7 @@ RETYPE Player::codec_audio_thread(void *obj){
 		{
 			/* code */
             //pthread_cond_wait(&p_audio_cond,&p_audio_mutex);
+            
 		}
 	
 		int code = g_audio_queue.pop();
@@ -440,6 +443,13 @@ m_videoindex(-1),m_audioindex(-1){
 	p_video_mutex = CreateMutex(NULL,false,NULL);
 	p_audio_mutex = CreateMutex(NULL,false,NULL);
 #else
+	struct timeval val;
+	val.tv_sec= 0;
+	val.tv_usec = 40000;
+	select(0,NULL,NULL,NULL,&val);
+
+	 pthread_cond_signal(&p_video_cond);
+	 pthread_cond_signal(&p_audio_cond);
 	 pthread_mutex_init(&p_audio_mutex,NULL);
 	 pthread_mutex_init(&p_video_mutex,NULL);
 	 pthread_cond_init(&p_video_cond,NULL);
@@ -457,9 +467,6 @@ Player::~Player(){
 #ifdef WIN32
 
 #else
-	pthread_kill(g_read_tid,SIGKILL);
-	pthread_kill(g_video_tid,SIGKILL);
-	pthread_kill(g_audio_tid,SIGKILL);
 	pthread_join(g_read_tid,NULL);
 	pthread_join(g_video_tid,NULL);
 	pthread_join(g_audio_tid,NULL);
@@ -519,7 +526,7 @@ int Player::player(const char* filename){
 		m_sign = -1;
 		return -1;
 	}
-	
+	//http://blog.csdn.net/cjj198561/article/details/30248963
 	int av = 0;
 	if((av = avformat_open_input(&p_formatCtx,filename,NULL,NULL)) != 0){
 		char buf[1024] = {0};
